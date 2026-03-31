@@ -8,16 +8,29 @@
   @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap');
 
   :root {
-    --bg: #0d0f14;
-    --surface: #161920;
-    --border: #252830;
-    --accent: #4f8ef7;
-    --accent2: #7c6af7;
-    --success: #3ecf8e;
-    --text: #e8eaf0;
-    --muted: #6b7080;
+    --bg: #f4f5f7;
+    --surface: #ffffff;
+    --border: #dde0e8;
+    --accent: #3a7ef5;
+    --accent2: #6a59f0;
+    --success: #2db87a;
+    --text: #1a1d26;
+    --muted: #8a90a0;
     --mono: 'DM Mono', monospace;
     --sans: 'Syne', sans-serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d0f14;
+      --surface: #161920;
+      --border: #252830;
+      --accent: #4f8ef7;
+      --accent2: #7c6af7;
+      --success: #3ecf8e;
+      --text: #e8eaf0;
+      --muted: #6b7080;
+    }
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -106,7 +119,7 @@
     letter-spacing: 0.06em; text-transform: uppercase; font-size: 0.68rem;
     border-bottom: 1px solid var(--border);
   }
-  td { padding: 7px 12px; border-bottom: 1px solid rgba(37,40,48,0.6); font-family: var(--mono); }
+  td { padding: 7px 12px; border-bottom: 1px solid var(--border); font-family: var(--mono); }
   tr:last-child td { border-bottom: none; }
 
   .badge { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 0.68rem; font-weight: 500; }
@@ -135,6 +148,32 @@
   .status.show    { display: block; }
 
   .empty-state { text-align: center; padding: 32px; color: var(--muted); font-size: 0.82rem; }
+
+  .toggle-group {
+    display: flex;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 3px;
+    gap: 3px;
+  }
+  .toggle-group button {
+    flex: 1;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .toggle-group button.active {
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
 </style>
 </head>
 <body>
@@ -156,9 +195,18 @@
   <div class="file-name" id="fileName"></div>
 </div>
 
+<!-- Filter -->
+<div class="card">
+  <h2>2 — Include</h2>
+  <div class="toggle-group">
+    <button id="filterShifts" class="active" onclick="setFilter('shifts')">Working days</button>
+    <button id="filterAll" onclick="setFilter('all')">Everything</button>
+  </div>
+</div>
+
 <!-- Preview -->
 <div class="card">
-  <h2>2 — Preview</h2>
+  <h2>3 — Preview</h2>
   <div id="previewContent">
     <div class="empty-state">Upload a file to see a preview</div>
   </div>
@@ -166,7 +214,7 @@
 
 <!-- Export -->
 <div class="card">
-  <h2>3 — Export</h2>
+  <h2>4 — Export</h2>
   <button class="btn btn-primary" id="exportBtn" disabled>
     ⬇ Download .ics File
   </button>
@@ -178,6 +226,8 @@ const TZ       = 'Europe/Copenhagen';
 const CAL_NAME = 'Work Schedule';
 
 let parsedEvents    = [];
+let allEvents       = []; // full unfiltered list
+let filterMode      = 'shifts'; // 'shifts' | 'all'
 let detectedYear    = new Date().getFullYear();
 let detectedMonth   = new Date().getMonth() + 1;
 let detectedFilename = 'schedule';
@@ -212,14 +262,29 @@ function handleFile(file) {
   reader.onload = e => {
     try {
       const raw = e.target.result;
-      parsedEvents = ext === 'csv' ? parseCSV(raw) : parseRTF(raw);
-      renderPreview(parsedEvents);
-      exportBtn.disabled = parsedEvents.length === 0;
+      allEvents = ext === 'csv' ? parseCSV(raw) : parseRTF(raw);
+      applyFilter();
     } catch(err) {
       setStatus('error', 'Parse error: ' + err.message);
     }
   };
   reader.readAsText(file, 'latin1');
+}
+
+// ── Filter ─────────────────────────────────────────────────────────────
+function setFilter(mode) {
+  filterMode = mode;
+  document.getElementById('filterShifts').classList.toggle('active', mode === 'shifts');
+  document.getElementById('filterAll').classList.toggle('active', mode === 'all');
+  if (allEvents.length) applyFilter();
+}
+
+function applyFilter() {
+  parsedEvents = filterMode === 'shifts'
+    ? allEvents.filter(e => !e.allDay)
+    : allEvents;
+  renderPreview(parsedEvents);
+  exportBtn.disabled = parsedEvents.length === 0;
 }
 
 // ── Detect year/month from text ────────────────────────────────────────
@@ -256,9 +321,13 @@ function parseRTF(raw) {
     const note  = m[3].trim();
 
     if (day < 1 || day > 31) continue;
-    if (/^fridag$/i.test(shift)) continue;
 
     const dateStr = `${detectedYear}-${String(detectedMonth).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+
+    if (/^fridag$/i.test(shift)) {
+      events.push({ date: dateStr, summary: 'Fridag', start: null, end: null, allDay: true, note: '' });
+      continue;
+    }
 
     const tm = shift.match(/^(\d{2})(\d{2})-(\d{4})[A-Z]?$/);
     if (tm) {
@@ -302,7 +371,10 @@ function parseCSV(raw) {
     subject = subject.replace(/^\d{4}-\d{4}[A-Z]?\s+/, '').replace(/[()]/g, '').trim();
     subject = normalizeLabel(subject);
 
-    if (/^fridag$/i.test(subject)) continue;
+    if (/^fridag$/i.test(subject)) {
+      events.push({ date: dateStr, summary: 'Fridag', start: null, end: null, allDay: true, note: '' });
+      continue;
+    }
 
     if (allDay || !startTime) {
       events.push({ date: dateStr, summary: subject, start: null, end: null, allDay: true, note: '' });
