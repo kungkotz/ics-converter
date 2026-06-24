@@ -47,87 +47,69 @@
   }
 
   header { text-align: center; margin-bottom: 40px; }
-
   header h1 {
-    font-family: var(--sans);
-    font-weight: 800;
-    font-size: clamp(1.8rem, 5vw, 2.8rem);
-    letter-spacing: -0.03em;
+    font-family: var(--sans); font-weight: 800;
+    font-size: clamp(1.8rem, 5vw, 2.8rem); letter-spacing: -0.03em;
     background: linear-gradient(135deg, var(--accent), var(--accent2));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
   }
-
   header p { margin-top: 8px; color: var(--muted); font-size: 0.85rem; }
 
   .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 28px;
-    width: 100%;
-    max-width: 620px;
-    margin-bottom: 20px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 28px; width: 100%; max-width: 640px; margin-bottom: 20px;
   }
-
   .card h2 {
-    font-family: var(--sans);
-    font-size: 0.75rem;
-    font-weight: 600;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 16px;
+    font-family: var(--sans); font-size: 0.75rem; font-weight: 600;
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 16px;
   }
 
   .dropzone {
-    border: 2px dashed var(--border);
-    border-radius: 8px;
-    padding: 36px 20px;
-    text-align: center;
-    cursor: pointer;
-    transition: border-color 0.2s, background 0.2s;
-    position: relative;
+    border: 2px dashed var(--border); border-radius: 8px; padding: 36px 20px;
+    text-align: center; cursor: pointer; transition: border-color 0.2s, background 0.2s; position: relative;
   }
-  .dropzone:hover, .dropzone.drag-over {
-    border-color: var(--accent);
-    background: rgba(79,142,247,0.05);
-  }
-  .dropzone input[type=file] {
-    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
-  }
+  .dropzone:hover, .dropzone.drag-over { border-color: var(--accent); background: rgba(79,142,247,0.05); }
+  .dropzone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
   .dropzone .icon { font-size: 2.2rem; margin-bottom: 10px; }
   .dropzone .label { font-family: var(--sans); font-weight: 600; font-size: 0.95rem; color: var(--text); }
   .dropzone .sublabel { font-size: 0.78rem; color: var(--muted); margin-top: 4px; }
-  .file-name { margin-top: 12px; font-size: 0.8rem; color: var(--accent); font-family: var(--mono); }
+  .file-name { margin-top: 12px; font-size: 0.8rem; color: var(--accent); }
 
   .preview-wrap {
-    max-height: 260px;
-    overflow-y: auto;
-    border-radius: 6px;
-    border: 1px solid var(--border);
+    max-height: 300px; overflow-y: auto; border-radius: 6px; border: 1px solid var(--border);
   }
   .preview-wrap::-webkit-scrollbar { width: 6px; }
-  .preview-wrap::-webkit-scrollbar-track { background: transparent; }
   .preview-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
   table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
   thead tr { background: var(--bg); position: sticky; top: 0; z-index: 1; }
   th {
     padding: 8px 12px; text-align: left; color: var(--muted); font-weight: 500;
-    letter-spacing: 0.06em; text-transform: uppercase; font-size: 0.68rem;
-    border-bottom: 1px solid var(--border);
+    letter-spacing: 0.06em; text-transform: uppercase; font-size: 0.68rem; border-bottom: 1px solid var(--border);
   }
-  td { padding: 7px 12px; border-bottom: 1px solid var(--border); font-family: var(--mono); }
+  td { padding: 7px 12px; border-bottom: 1px solid var(--border); }
   tr:last-child td { border-bottom: none; }
 
-  .badge { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 0.68rem; font-weight: 500; }
-  .badge-shift { background: rgba(79,142,247,0.15); color: var(--accent); }
-  .badge-other { background: rgba(124,106,247,0.15); color: #7c6af7; }
+  .badge {
+    display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 0.68rem; font-weight: 500; white-space: nowrap;
+  }
+  .badge-shift           { background: rgba(79,142,247,0.15);  color: var(--accent); }
+  .badge-extra-company   { background: rgba(45,184,122,0.15);  color: #2db87a; }
+  .badge-extra-colleague { background: rgba(247,179,79,0.15);  color: #c98a00; }
+  .badge-dayoff          { background: rgba(138,144,160,0.12); color: var(--muted); }
+  .badge-fridag          { background: rgba(124,106,247,0.15); color: #7c6af7; }
 
-  .stats { display: flex; gap: 20px; margin-top: 14px; font-size: 0.78rem; color: var(--muted); }
-  .stats span { color: var(--text); font-weight: 500; }
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+  .stat-box {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;
+  }
+  .stat-box .stat-label { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+  .stat-box .stat-value { font-family: var(--sans); font-weight: 700; font-size: 1.15rem; color: var(--text); }
+  .stat-box .stat-sub   { font-size: 0.7rem; color: var(--muted); margin-top: 2px; }
+  .stat-box.accent  { border-color: rgba(79,142,247,0.4); }
+  .stat-box.success { border-color: rgba(45,184,122,0.4); }
+  .stat-box.warn    { border-color: rgba(247,179,79,0.4); }
+  .stat-box.purple  { border-color: rgba(124,106,247,0.4); }
 
   .btn {
     display: inline-flex; align-items: center; gap: 8px; padding: 11px 22px;
@@ -150,61 +132,43 @@
   .empty-state { text-align: center; padding: 32px; color: var(--muted); font-size: 0.82rem; }
 
   .toggle-group {
-    display: flex;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 3px;
-    gap: 3px;
+    display: flex; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 3px; gap: 3px;
   }
   .toggle-group button {
-    flex: 1;
-    padding: 8px 12px;
-    border: none;
-    border-radius: 5px;
-    background: transparent;
-    color: var(--muted);
-    font-family: var(--mono);
-    font-size: 0.8rem;
-    cursor: pointer;
-    transition: background 0.15s, color 0.15s;
+    flex: 1; padding: 8px 12px; border: none; border-radius: 5px; background: transparent;
+    color: var(--muted); font-family: var(--mono); font-size: 0.8rem; cursor: pointer; transition: background 0.15s, color 0.15s;
   }
-  .toggle-group button.active {
-    background: var(--surface);
-    color: var(--text);
-    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-  }
+  .toggle-group button.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+
+  .annot { color: var(--muted); font-size: 0.7rem; margin-left: 4px; }
 </style>
 </head>
 <body>
 
 <header>
   <h1>Schedule → ICS</h1>
-  <p>Convert your roster (.doc, .txt or .csv) to a calendar file</p>
+  <p>Convert your Altéa roster (.txt) or export (.csv) to a calendar file</p>
 </header>
 
-<!-- Upload -->
 <div class="card">
   <h2>1 — Upload File</h2>
   <div class="dropzone" id="dropzone">
     <input type="file" id="fileInput" accept=".txt,.csv,.rtf,.doc">
     <div class="icon">📂</div>
     <div class="label">Drop file here or click to browse</div>
-    <div class="sublabel">Supports .doc, .txt (RTF roster / Altéa plain text) and .csv</div>
+    <div class="sublabel">Supports Altéa .txt, legacy .doc/.rtf, and .csv</div>
   </div>
   <div class="file-name" id="fileName"></div>
 </div>
 
-<!-- Filter -->
 <div class="card">
   <h2>2 — Include</h2>
   <div class="toggle-group">
-    <button id="filterShifts" class="active" onclick="setFilter('shifts')">Working days</button>
+    <button id="filterShifts" class="active" onclick="setFilter('shifts')">Working days only</button>
     <button id="filterAll" onclick="setFilter('all')">Everything</button>
   </div>
 </div>
 
-<!-- Preview -->
 <div class="card">
   <h2>3 — Preview</h2>
   <div id="previewContent">
@@ -212,12 +176,9 @@
   </div>
 </div>
 
-<!-- Export -->
 <div class="card">
   <h2>4 — Export</h2>
-  <button class="btn btn-primary" id="exportBtn" disabled>
-    ⬇ Download .ics File
-  </button>
+  <button class="btn btn-primary" id="exportBtn" disabled>⬇ Download .ics File</button>
   <div class="status" id="statusMsg"></div>
 </div>
 
@@ -239,39 +200,30 @@ const exportBtn      = document.getElementById('exportBtn');
 const statusMsg      = document.getElementById('statusMsg');
 const previewContent = document.getElementById('previewContent');
 
-// ── Drag & drop ────────────────────────────────────────────────────────
 dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
 dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
 dropzone.addEventListener('drop', e => {
-  e.preventDefault();
-  dropzone.classList.remove('drag-over');
+  e.preventDefault(); dropzone.classList.remove('drag-over');
   if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
 });
-fileInput.addEventListener('change', () => {
-  if (fileInput.files[0]) handleFile(fileInput.files[0]);
-});
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
 
-// ── File handling ──────────────────────────────────────────────────────
 function handleFile(file) {
   const ext = file.name.split('.').pop().toLowerCase();
   detectedFilename = file.name.replace(/\.[^.]+$/, '');
   fileName.textContent = '📄 ' + file.name;
   setStatus('', '');
-
   const reader = new FileReader();
   reader.onload = e => {
     try {
       const raw = e.target.result;
-      allEvents = ext === 'csv' ? parseCSV(raw) : parseRTF(raw);
+      allEvents = ext === 'csv' ? parseCSV(raw) : parseAltea(raw);
       applyFilter();
-    } catch(err) {
-      setStatus('error', 'Parse error: ' + err.message);
-    }
+    } catch(err) { setStatus('error', 'Parse error: ' + err.message); }
   };
   reader.readAsText(file, 'latin1');
 }
 
-// ── Filter ─────────────────────────────────────────────────────────────
 function setFilter(mode) {
   filterMode = mode;
   document.getElementById('filterShifts').classList.toggle('active', mode === 'shifts');
@@ -280,14 +232,11 @@ function setFilter(mode) {
 }
 
 function applyFilter() {
-  parsedEvents = filterMode === 'shifts'
-    ? allEvents.filter(e => !e.allDay)
-    : allEvents;
-  renderPreview(parsedEvents);
+  parsedEvents = filterMode === 'shifts' ? allEvents.filter(e => !e.allDay) : allEvents;
+  renderPreview(parsedEvents, allEvents);
   exportBtn.disabled = parsedEvents.length === 0;
 }
 
-// ── Detect year/month from text ────────────────────────────────────────
 function detectYearMonth(text) {
   const months = ['january','february','march','april','may','june',
                   'july','august','september','october','november','december'];
@@ -299,42 +248,120 @@ function detectYearMonth(text) {
   if (y) detectedYear = parseInt(y[0]);
 }
 
-// ── Add days to a YYYY-MM-DD date string ──────────────────────────────
 function addDays(dateStr, n) {
   const d = new Date(dateStr + 'T00:00:00');
   d.setDate(d.getDate() + n);
   return d.toISOString().slice(0, 10);
 }
 
-// ── RTF / plain-text parser ────────────────────────────────────────────
-// Handles both:
-//   Altéa plain text: "Thursday  2026/07/02 : 0445-1300G"
-//   Legacy RTF:       "2 Thursday 0445-1300G note"
-function parseRTF(raw) {
+// Parse extra paid hours from annotation tokens like ADM(2.00), AFS(1.00), LVA(1)
+function parseAnnotHours(tokens) {
+  let extra = 0;
+  for (const t of tokens) {
+    const m = t.match(/^[A-Z]{2,}\(([\d.]+)\)/i);
+    if (m) extra += parseFloat(m[1]);
+  }
+  return extra;
+}
+
+// Duration in hours including any paid annotation hours
+function shiftHours(ev) {
+  if (ev.allDay || !ev.start || !ev.end) return 0;
+  const [sh, sm] = ev.start.split(':').map(Number);
+  const [eh, em] = ev.end.split(':').map(Number);
+  let mins = (eh * 60 + em) - (sh * 60 + sm);
+  if (mins < 0) mins += 1440;
+  return (mins / 60) + (ev.extraHours || 0);
+}
+
+function fmtHours(h) {
+  const hrs  = Math.floor(h);
+  const mins = Math.round((h - hrs) * 60);
+  return mins ? `${hrs}h ${mins}m` : `${hrs}h`;
+}
+
+function makeShiftEvent(dateStr, start, end, type, summary, annots, extraHours) {
+  const [sh, sm] = start.split(':').map(Number);
+  const [eh, em] = end.split(':').map(Number);
+  const endDate  = (eh * 60 + em) < (sh * 60 + sm) ? addDays(dateStr, 1) : dateStr;
+  return { date: dateStr, summary, start, end, endDate, allDay: false, type, note: annots, extraHours: extraHours || 0 };
+}
+function makeFridag(dateStr) {
+  return { date: dateStr, summary: 'Fridag', start: null, end: null, endDate: dateStr, allDay: true, type: 'fridag', note: '', extraHours: 0 };
+}
+function makeDayOff(dateStr) {
+  return { date: dateStr, summary: 'Day Off', start: null, end: null, endDate: dateStr, allDay: true, type: 'dayoff', note: '', extraHours: 0 };
+}
+
+// ── Main parser: Altéa plain text + legacy RTF ─────────────────────────
+function parseAltea(raw) {
   let text = raw
-    .replace(/\\'d8/gi, 'Ø').replace(/\\'f8/gi, 'ø')
-    .replace(/\\'e6/gi, 'æ').replace(/\\'c6/gi, 'Æ')
-    .replace(/\\'e5/gi, 'å').replace(/\\'c5/gi, 'Å')
-    .replace(/\\[a-z]+[-]?\d*[ ]?/gi, '')
-    .replace(/[{}]/g, '')
-    .replace(/\r/g, '');
+    .replace(/\\'d8/gi,'Ø').replace(/\\'f8/gi,'ø')
+    .replace(/\\'e6/gi,'æ').replace(/\\'c6/gi,'Æ')
+    .replace(/\\'e5/gi,'å').replace(/\\'c5/gi,'Å')
+    .replace(/\\[a-z]+[-]?\d*[ ]?/gi,'').replace(/[{}]/g,'').replace(/\r/g,'');
 
   detectYearMonth(text);
+
+  // Build colleague code map: dateStr → code (from "Byt/NSA/xx  YYYYMMDD" lines)
+  const colleagueMap = {};
+  for (const line of text.split('\n')) {
+    const m = line.match(/Byt\/([A-Z]+)\/[^\s]*\s+(\d{8})/i);
+    if (m) {
+      const ds = m[2];
+      colleagueMap[`${ds.slice(0,4)}-${ds.slice(4,6)}-${ds.slice(6,8)}`] = m[1].toUpperCase();
+    }
+  }
 
   const events = [];
 
   for (const line of text.split('\n').map(l => l.trim()).filter(Boolean)) {
 
-    // ── Altéa format: "Thursday  2026/07/02 : 0445-1300G"
+    // ── Altéa: "Thursday  2026/07/02 : 0445-1300G"
     const altea = line.match(/^\w+\s+(\d{4})\/(\d{2})\/(\d{2})\s*:\s*(.*)/);
     if (altea) {
       const dateStr = `${altea[1]}-${altea[2]}-${altea[3]}`;
-      const rest    = altea[4].trim();
-      parseShiftTokens(dateStr, rest, events);
+      const tokens  = altea[4].trim().split(/\s+/).filter(Boolean);
+
+      const hasByt    = tokens.some(t => /^byt$/i.test(t));
+      const hasFridag = tokens.some(t => /^fridag$/i.test(t));
+      const shiftToks = tokens.filter(t => /^\d{4}-\d{4}[A-Z]?$/.test(t));
+      const annotToks = tokens.filter(t => /^[A-Z]{2,}\(/.test(t));
+      const annotStr  = annotToks.join(' ');
+      const extraHours = parseAnnotHours(annotToks);
+
+      if (tokens.length === 0) { events.push(makeDayOff(dateStr)); continue; }
+
+      if (hasFridag) events.push(makeFridag(dateStr));
+
+      if (shiftToks.length === 0) {
+        // Byt with no shift = gave away, or empty fridag
+        if (!hasFridag) events.push(makeDayOff(dateStr));
+        continue;
+      }
+
+      for (const shiftStr of shiftToks) {
+        const tm = shiftStr.match(/^(\d{2})(\d{2})-(\d{2})(\d{2})[A-Z]?$/);
+        if (!tm) continue;
+        const start = `${tm[1]}:${tm[2]}`, end = `${tm[3]}:${tm[4]}`;
+        let type, summary;
+        if (hasByt) {
+          const colleague = colleagueMap[dateStr];
+          type    = 'extra-colleague';
+          summary = colleague ? `Colleague Extra (${colleague})` : 'Colleague Extra Shift';
+        } else if (hasFridag) {
+          type    = 'extra-company';
+          summary = 'Company Extra Shift';
+        } else {
+          type    = 'shift';
+          summary = 'Shift';
+        }
+        events.push(makeShiftEvent(dateStr, start, end, type, summary, annotStr, extraHours));
+      }
       continue;
     }
 
-    // ── Legacy RTF format: "2 Thursday 0445-1300G note"
+    // ── Legacy RTF: "2 Thursday 0445-1300G note"
     const legacy = line.match(/^(\d{1,2})\s+\w+\s+([\w\-:().]+(?:\s+[\w\-.()]+)?)\s*(.*)/);
     if (legacy) {
       const day = parseInt(legacy[1]);
@@ -342,247 +369,209 @@ function parseRTF(raw) {
       const dateStr = `${detectedYear}-${String(detectedMonth).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
       const shift   = legacy[2].trim();
       const note    = legacy[3].trim();
-
-      if (/^fridag$/i.test(shift)) {
-        events.push({ date: dateStr, summary: 'Fridag', start: null, end: null, endDate: dateStr, allDay: true, note: '' });
-        continue;
-      }
+      if (/^fridag$/i.test(shift)) { events.push(makeFridag(dateStr)); continue; }
       const tm = shift.match(/^(\d{2})(\d{2})-(\d{2})(\d{2})[A-Z]?$/);
       if (tm) {
-        const startMins = parseInt(tm[1]) * 60 + parseInt(tm[2]);
-        const endMins   = parseInt(tm[3]) * 60 + parseInt(tm[4]);
-        const endDate   = endMins < startMins ? addDays(dateStr, 1) : dateStr;
-        events.push({
-          date: dateStr, summary: normalizeLabel(note) || shift,
-          start: `${tm[1]}:${tm[2]}`, end: `${tm[3]}:${tm[4]}`,
-          endDate, allDay: false, note: shift
-        });
+        events.push(makeShiftEvent(dateStr, `${tm[1]}:${tm[2]}`, `${tm[3]}:${tm[4]}`, 'shift',
+          note ? note.replace(/\b\w/g,c=>c.toUpperCase()) : 'Shift', '', 0));
       } else if (shift) {
-        events.push({ date: dateStr, summary: normalizeLabel(shift), start: null, end: null, endDate: dateStr, allDay: true, note });
+        events.push({ date: dateStr, summary: shift, start: null, end: null, endDate: dateStr, allDay: true, type: 'dayoff', note, extraHours: 0 });
       }
     }
   }
   return events;
 }
 
-// ── Parse right-hand side of an Altéa line ───────────────────────────
-// Handles: blank, "Fridag", "0445-1300G", "Fridag  0630-1330G", "1645-2145G ADM(2.00)"
-function parseShiftTokens(dateStr, rest, events) {
-  if (!rest) return; // empty day — skip
-
-  const tokens   = rest.split(/\s+/).filter(Boolean);
-  let hasFridag  = false;
-
-  for (const token of tokens) {
-    // Fridag token
-    if (/^fridag$/i.test(token)) {
-      hasFridag = true;
-      events.push({ date: dateStr, summary: 'Fridag', start: null, end: null, endDate: dateStr, allDay: true, note: '' });
-      continue;
-    }
-
-    // Shift time token e.g. 0445-1300G
-    const tm = token.match(/^(\d{2})(\d{2})-(\d{2})(\d{2})[A-Z]?$/);
-    if (tm) {
-      const startMins = parseInt(tm[1]) * 60 + parseInt(tm[2]);
-      const endMins   = parseInt(tm[3]) * 60 + parseInt(tm[4]);
-      const start     = `${tm[1]}:${tm[2]}`;
-      const end       = `${tm[3]}:${tm[4]}`;
-
-      // End time earlier than start → crosses midnight
-      const endDate = endMins < startMins ? addDays(dateStr, 1) : dateStr;
-
-      // Collect annotation tokens like ADM(2.00)
-      const annots  = tokens.filter(t => /^[A-Z]{2,}\(/.test(t)).join(' ');
-      const summary = hasFridag ? 'Extra Shift' : 'Shift';
-
-      events.push({ date: dateStr, summary, start, end, endDate, allDay: false, note: annots });
-      continue;
-    }
-
-    // Annotation-only tokens (ADM etc.) — already captured above, skip
-  }
-}
-
 // ── CSV Parser ─────────────────────────────────────────────────────────
 function parseCSV(raw) {
-  const fixed = raw
-    .replace(/\x00/g, '')
-    .replace(/F\nL /gi, 'FØL ')
-    .replace(/f\nl /gi, 'føl ');
-
+  const fixed = raw.replace(/\x00/g,'').replace(/F\nL /gi,'FØL ').replace(/f\nl /gi,'føl ');
   detectYearMonth(fixed);
-
-  const lines = fixed.split('\n').map(l => l.trim()).filter(Boolean);
+  const lines = fixed.split('\n').map(l=>l.trim()).filter(Boolean);
   if (lines.length < 2) throw new Error('CSV appears empty');
-
   const events = [];
   for (let i = 1; i < lines.length; i++) {
     const cols = splitCSVLine(lines[i]);
     if (cols.length < 3) continue;
-
     let subject     = cols[0].trim();
     const startDate = cols[1].trim();
     const startTime = cols[2].trim();
     const endTime   = cols[4] ? cols[4].trim() : '';
     const allDay    = cols[5] ? cols[5].trim().toUpperCase() === 'TRUE' : false;
-
     if (!startDate) continue;
     const dp = startDate.split('/');
     if (dp.length < 3) continue;
     const dateStr = `${dp[2]}-${dp[1].padStart(2,'0')}-${dp[0].padStart(2,'0')}`;
-
-    subject = subject.replace(/^\d{4}-\d{4}[A-Z]?\s+/, '').replace(/[()]/g, '').trim();
-    subject = normalizeLabel(subject);
-
-    if (/^fridag$/i.test(subject)) {
-      events.push({ date: dateStr, summary: 'Fridag', start: null, end: null, endDate: dateStr, allDay: true, note: '' });
-      continue;
-    }
-
+    subject = subject.replace(/^\d{4}-\d{4}[A-Z]?\s+/,'').replace(/[()]/g,'').trim();
+    subject = subject.replace(/\b\w/g,c=>c.toUpperCase());
+    if (/^fridag$/i.test(subject)) { events.push(makeFridag(dateStr)); continue; }
     if (allDay || !startTime) {
-      events.push({ date: dateStr, summary: subject, start: null, end: null, endDate: dateStr, allDay: true, note: '' });
+      events.push({ date: dateStr, summary: subject, start: null, end: null, endDate: dateStr, allDay: true, type: 'dayoff', note: '', extraHours: 0 });
     } else {
-      // Handle midnight-crossing in CSV too
       let endDate = dateStr;
       if (endTime) {
-        const sh = parseInt(startTime.split(':')[0] || startTime.slice(0,2));
-        const sm = parseInt(startTime.split(':')[1] || startTime.slice(2,4));
-        const eh = parseInt(endTime.split(':')[0]   || endTime.slice(0,2));
-        const em = parseInt(endTime.split(':')[1]   || endTime.slice(2,4));
-        if ((eh * 60 + em) < (sh * 60 + sm)) endDate = addDays(dateStr, 1);
+        const sh = parseInt(startTime.slice(0,2)), sm = parseInt(startTime.slice(3)||startTime.slice(2,4));
+        const eh = parseInt(endTime.slice(0,2)),   em = parseInt(endTime.slice(3)||endTime.slice(2,4));
+        if ((eh*60+em)<(sh*60+sm)) endDate = addDays(dateStr,1);
       }
-      events.push({ date: dateStr, summary: subject, start: startTime, end: endTime || startTime, endDate, allDay: false, note: '' });
+      events.push({ date: dateStr, summary: subject, start: startTime, end: endTime||startTime, endDate, allDay: false, type: 'shift', note: '', extraHours: 0 });
     }
   }
   return events;
 }
 
 function splitCSVLine(line) {
-  const result = []; let cur = '', inQ = false;
-  for (let i = 0; i < line.length; i++) {
-    if (line[i] === '"') { inQ = !inQ; }
-    else if (line[i] === ',' && !inQ) { result.push(cur); cur = ''; }
-    else cur += line[i];
+  const result=[]; let cur='', inQ=false;
+  for (const ch of line) {
+    if (ch==='"') inQ=!inQ;
+    else if (ch===','&&!inQ){result.push(cur);cur='';}
+    else cur+=ch;
   }
-  result.push(cur);
-  return result;
+  result.push(cur); return result;
 }
 
-function normalizeLabel(s) {
-  return s.replace(/f[øo8]l/gi, 'FOL').replace(/\s+/g, ' ').trim()
-          .replace(/\b\w/g, c => c.toUpperCase());
+// ── Stats ──────────────────────────────────────────────────────────────
+function calcStats(all) {
+  const shifts           = all.filter(e => e.type === 'shift');
+  const extraCompany     = all.filter(e => e.type === 'extra-company');
+  const extraColleague   = all.filter(e => e.type === 'extra-colleague');
+  const daysOff          = all.filter(e => e.type === 'dayoff');
+  const fridager         = all.filter(e => e.type === 'fridag');
+
+  // Fridager with no extra shift on same date = pure days off
+  const extraDates       = new Set([...extraCompany, ...extraColleague].map(e => e.date));
+  const fridagPure       = fridager.filter(e => !extraDates.has(e.date));
+  const fridagWithWork   = fridager.filter(e => extraDates.has(e.date));
+
+  const totalShiftHours    = shifts.map(shiftHours).reduce((a,b)=>a+b,0);
+  const totalExtraCoHours  = extraCompany.map(shiftHours).reduce((a,b)=>a+b,0);
+  const totalExtraColHours = extraColleague.map(shiftHours).reduce((a,b)=>a+b,0);
+  const totalHours         = totalShiftHours + totalExtraCoHours + totalExtraColHours;
+
+  return { shifts, extraCompany, extraColleague, daysOff, fridager, fridagPure, fridagWithWork,
+           totalShiftHours, totalExtraCoHours, totalExtraColHours, totalHours };
+}
+
+function typeBadge(type) {
+  const map = {
+    'shift':           ['badge-shift',           'shift'],
+    'extra-company':   ['badge-extra-company',    'company extra'],
+    'extra-colleague': ['badge-extra-colleague',  'colleague extra'],
+    'dayoff':          ['badge-dayoff',           'day off'],
+    'fridag':          ['badge-fridag',           'fridag'],
+  };
+  const [cls, label] = map[type] || ['badge-dayoff', type];
+  return `<span class="badge ${cls}">${label}</span>`;
 }
 
 // ── Preview ────────────────────────────────────────────────────────────
-function renderPreview(events) {
-  if (!events.length) {
+function renderPreview(events, all) {
+  if (!all || !all.length) {
     previewContent.innerHTML = '<div class="empty-state">No events found. Check file format.</div>';
     return;
   }
-  const shifts = events.filter(e => !e.allDay).length;
-  const other  = events.filter(e => e.allDay).length;
+  const s = calcStats(all);
 
   let html = `<div class="preview-wrap"><table><thead><tr>
     <th>Date</th><th>Summary</th><th>Time</th><th>Type</th>
   </tr></thead><tbody>`;
   for (const ev of events) {
-    const timeStr = ev.allDay ? '—' : ev.endDate !== ev.date
-      ? `${ev.start} – ${ev.end} (+1)`
-      : `${ev.start} – ${ev.end}`;
-    const badge = ev.allDay
-      ? `<span class="badge badge-other">other</span>`
-      : `<span class="badge badge-shift">shift</span>`;
-    html += `<tr><td>${ev.date}</td><td>${ev.summary}${ev.note ? ` <span style="color:var(--muted);font-size:0.7rem">${ev.note}</span>` : ''}</td><td>${timeStr}</td><td>${badge}</td></tr>`;
+    const timeStr = ev.allDay ? '—'
+      : ev.endDate !== ev.date ? `${ev.start}–${ev.end} <span class="annot">(+1)</span>`
+      : `${ev.start}–${ev.end}`;
+    const annotStr = ev.note ? `<span class="annot">${ev.note}</span>` : '';
+    html += `<tr>
+      <td>${ev.date}</td>
+      <td>${ev.summary} ${annotStr}</td>
+      <td>${timeStr}</td>
+      <td>${typeBadge(ev.type)}</td>
+    </tr>`;
   }
-  html += `</tbody></table></div>
-    <div class="stats">
-      <div>Total: <span>${events.length}</span></div>
-      <div>Shifts: <span>${shifts}</span></div>
-      ${other ? `<div>Other: <span>${other}</span></div>` : ''}
-    </div>`;
+  html += `</tbody></table></div>`;
+
+  html += `<div class="stats-grid">
+    <div class="stat-box accent">
+      <div class="stat-label">Shifts</div>
+      <div class="stat-value">${s.shifts.length}</div>
+      <div class="stat-sub">${fmtHours(s.totalShiftHours)}</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">Days Off</div>
+      <div class="stat-value">${s.daysOff.length}</div>
+      <div class="stat-sub">empty / gave swap</div>
+    </div>
+    <div class="stat-box purple">
+      <div class="stat-label">Fridager</div>
+      <div class="stat-value">${s.fridager.length} <span style="font-size:0.8rem;font-weight:400;color:var(--muted)">(${s.fridagPure.length} free)</span></div>
+      <div class="stat-sub">${s.fridagWithWork.length} with extra shift</div>
+    </div>
+    <div class="stat-box success">
+      <div class="stat-label">Company Extra</div>
+      <div class="stat-value">${s.extraCompany.length}</div>
+      <div class="stat-sub">${fmtHours(s.totalExtraCoHours)}</div>
+    </div>
+    <div class="stat-box warn">
+      <div class="stat-label">Colleague Extra</div>
+      <div class="stat-value">${s.extraColleague.length}</div>
+      <div class="stat-sub">${fmtHours(s.totalExtraColHours)}</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">Total Hours</div>
+      <div class="stat-value">${fmtHours(s.totalHours)}</div>
+      <div class="stat-sub">incl. ADM/AFS/LVA/SVA</div>
+    </div>
+  </div>`;
+
   previewContent.innerHTML = html;
 }
 
 // ── ICS Generation ─────────────────────────────────────────────────────
 function generateICS(events) {
-  const now = new Date().toISOString().replace(/[-:.]/g,'').slice(0,15) + 'Z';
+  const now = new Date().toISOString().replace(/[-:.]/g,'').slice(0,15)+'Z';
   const tzBlock = [
-    'BEGIN:VTIMEZONE',
-    `TZID:${TZ}`,
-    'BEGIN:STANDARD',
-    'DTSTART:19701025T030000',
-    'RRULE:FREQ=YEARLY;BYDAY=-1SU;BYMONTH=10',
-    'TZOFFSETFROM:+0200',
-    'TZOFFSETTO:+0100',
-    'TZNAME:CET',
-    'END:STANDARD',
-    'BEGIN:DAYLIGHT',
-    'DTSTART:19700329T020000',
-    'RRULE:FREQ=YEARLY;BYDAY=-1SU;BYMONTH=3',
-    'TZOFFSETFROM:+0100',
-    'TZOFFSETTO:+0200',
-    'TZNAME:CEST',
-    'END:DAYLIGHT',
+    'BEGIN:VTIMEZONE',`TZID:${TZ}`,
+    'BEGIN:STANDARD','DTSTART:19701025T030000','RRULE:FREQ=YEARLY;BYDAY=-1SU;BYMONTH=10',
+    'TZOFFSETFROM:+0200','TZOFFSETTO:+0100','TZNAME:CET','END:STANDARD',
+    'BEGIN:DAYLIGHT','DTSTART:19700329T020000','RRULE:FREQ=YEARLY;BYDAY=-1SU;BYMONTH=3',
+    'TZOFFSETFROM:+0100','TZOFFSETTO:+0200','TZNAME:CEST','END:DAYLIGHT',
     'END:VTIMEZONE'
   ].join('\r\n');
 
-  let cal = [
-    'BEGIN:VCALENDAR',
-    'VERSION:2.0',
-    'PRODID:-//TCOBuddy//Schedule Converter//EN',
-    'CALSCALE:GREGORIAN',
-    'METHOD:PUBLISH',
-    `X-WR-CALNAME:${CAL_NAME}`,
-    `X-WR-TIMEZONE:${TZ}`,
-    tzBlock
+  let cal = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//TCOBuddy//Schedule Converter//EN',
+    'CALSCALE:GREGORIAN','METHOD:PUBLISH',`X-WR-CALNAME:${CAL_NAME}`,`X-WR-TIMEZONE:${TZ}`,tzBlock
   ].join('\r\n') + '\r\n';
 
   events.forEach((ev, idx) => {
     const uid     = `${ev.date.replace(/-/g,'')}-${idx}@tcobuddy`;
-    const summary = ev.summary.replace(/,/g, '\\,').replace(/;/g, '\\;');
+    const summary = ev.summary.replace(/,/g,'\\,').replace(/;/g,'\\;');
     const desc    = ev.note ? `DESCRIPTION:${ev.note}\r\n` : '';
-
     if (ev.allDay) {
       const d = ev.date.replace(/-/g,'');
       cal += `BEGIN:VEVENT\r\nUID:${uid}\r\nDTSTAMP:${now}\r\nDTSTART;VALUE=DATE:${d}\r\nDTEND;VALUE=DATE:${d}\r\nSUMMARY:${summary}\r\n${desc}END:VEVENT\r\n`;
     } else {
-      const startDT = ev.date.replace(/-/g,'') + 'T' + ev.start.replace(':','') + '00';
-      const endDate = ev.endDate || ev.date;
-      let endDT;
-      if (ev.end === '24:00' || ev.end === '2400') {
-        endDT = addDays(ev.date, 1).replace(/-/g,'') + 'T000000';
-      } else {
-        endDT = endDate.replace(/-/g,'') + 'T' + ev.end.replace(':','') + '00';
-      }
+      const startDT = ev.date.replace(/-/g,'')+'T'+ev.start.replace(':','')+'00';
+      const endDT   = (ev.endDate||ev.date).replace(/-/g,'')+'T'+ev.end.replace(':','')+'00';
       cal += `BEGIN:VEVENT\r\nUID:${uid}\r\nDTSTAMP:${now}\r\nDTSTART;TZID=${TZ}:${startDT}\r\nDTEND;TZID=${TZ}:${endDT}\r\nSUMMARY:${summary}\r\n${desc}END:VEVENT\r\n`;
     }
   });
-
   return cal + 'END:VCALENDAR\r\n';
 }
 
-// ── Export ─────────────────────────────────────────────────────────────
 exportBtn.addEventListener('click', () => {
   if (!parsedEvents.length) return;
   try {
-    const blob = new Blob([generateICS(parsedEvents)], { type: 'text/calendar;charset=utf-8' });
+    const blob = new Blob([generateICS(parsedEvents)], {type:'text/calendar;charset=utf-8'});
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
-    a.href = url;
-    a.download = `${detectedFilename}.ics`;
-    a.click();
+    a.href=url; a.download=`${detectedFilename}.ics`; a.click();
     URL.revokeObjectURL(url);
     setStatus('success', `✓ Downloaded ${parsedEvents.length} events as .ics`);
-  } catch(err) {
-    setStatus('error', 'Export failed: ' + err.message);
-  }
+  } catch(err) { setStatus('error','Export failed: '+err.message); }
 });
 
 function setStatus(type, msg) {
   statusMsg.className = 'status';
   if (!type) return;
-  statusMsg.classList.add(type, 'show');
+  statusMsg.classList.add(type,'show');
   statusMsg.textContent = msg;
 }
 </script>
