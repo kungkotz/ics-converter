@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>Schedule → ICS Converter</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap');
@@ -193,15 +196,7 @@ const previewContent = document.getElementById('previewContent');
 const clearBtn       = document.getElementById('clearBtn');
 
 clearBtn.addEventListener('click', () => {
-  allEvents        = [];
-  parsedEvents     = [];
-  detectedFilename = 'schedule';
-  fileInput.value  = '';
-  fileName.textContent = '';
-  clearBtn.style.display = 'none';
-  exportBtn.disabled = true;
-  setStatus('', '');
-  previewContent.innerHTML = '<div class="empty-state">Upload a file to see a preview</div>';
+  window.location.reload(true); // hard reload, bypasses cache
 });
 dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
 dropzone.addEventListener('drop', e => {
