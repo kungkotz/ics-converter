@@ -131,14 +131,12 @@
 
   .empty-state { text-align: center; padding: 32px; color: var(--muted); font-size: 0.82rem; }
 
-  .toggle-group {
-    display: flex; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 3px; gap: 3px;
+  .btn-clear {
+    margin-top: 10px; background: transparent; border: 1px solid var(--border);
+    color: var(--muted); font-size: 0.8rem; padding: 7px 14px; width: 100%;
+    justify-content: center;
   }
-  .toggle-group button {
-    flex: 1; padding: 8px 12px; border: none; border-radius: 5px; background: transparent;
-    color: var(--muted); font-family: var(--mono); font-size: 0.8rem; cursor: pointer; transition: background 0.15s, color 0.15s;
-  }
-  .toggle-group button.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+  .btn-clear:hover { border-color: #f76363; color: #f76363; }
 
   .annot { color: var(--muted); font-size: 0.7rem; margin-left: 4px; }
 </style>
@@ -159,25 +157,18 @@
     <div class="sublabel">Supports Altéa .txt, legacy .doc/.rtf, and .csv</div>
   </div>
   <div class="file-name" id="fileName"></div>
+  <button class="btn btn-clear" id="clearBtn" style="display:none">✕ Clear</button>
 </div>
 
 <div class="card">
-  <h2>2 — Include</h2>
-  <div class="toggle-group">
-    <button id="filterShifts" class="active" onclick="setFilter('shifts')">Working days only</button>
-    <button id="filterAll" onclick="setFilter('all')">Everything</button>
-  </div>
-</div>
-
-<div class="card">
-  <h2>3 — Preview</h2>
+  <h2>2 — Preview</h2>
   <div id="previewContent">
     <div class="empty-state">Upload a file to see a preview</div>
   </div>
 </div>
 
 <div class="card">
-  <h2>4 — Export</h2>
+  <h2>3 — Export</h2>
   <button class="btn btn-primary" id="exportBtn" disabled>⬇ Download .ics File</button>
   <div class="status" id="statusMsg"></div>
 </div>
@@ -188,7 +179,6 @@ const CAL_NAME = 'Work Schedule';
 
 let parsedEvents     = [];
 let allEvents        = [];
-let filterMode       = 'shifts';
 let detectedYear     = new Date().getFullYear();
 let detectedMonth    = new Date().getMonth() + 1;
 let detectedFilename = 'schedule';
@@ -200,7 +190,19 @@ const exportBtn      = document.getElementById('exportBtn');
 const statusMsg      = document.getElementById('statusMsg');
 const previewContent = document.getElementById('previewContent');
 
-dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+const clearBtn       = document.getElementById('clearBtn');
+
+clearBtn.addEventListener('click', () => {
+  allEvents        = [];
+  parsedEvents     = [];
+  detectedFilename = 'schedule';
+  fileInput.value  = '';
+  fileName.textContent = '';
+  clearBtn.style.display = 'none';
+  exportBtn.disabled = true;
+  setStatus('', '');
+  previewContent.innerHTML = '<div class="empty-state">Upload a file to see a preview</div>';
+});
 dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
 dropzone.addEventListener('drop', e => {
   e.preventDefault(); dropzone.classList.remove('drag-over');
@@ -218,21 +220,15 @@ function handleFile(file) {
     try {
       const raw = e.target.result;
       allEvents = ext === 'csv' ? parseCSV(raw) : parseAltea(raw);
+      clearBtn.style.display = 'block';
       applyFilter();
     } catch(err) { setStatus('error', 'Parse error: ' + err.message); }
   };
   reader.readAsText(file, 'latin1');
 }
 
-function setFilter(mode) {
-  filterMode = mode;
-  document.getElementById('filterShifts').classList.toggle('active', mode === 'shifts');
-  document.getElementById('filterAll').classList.toggle('active', mode === 'all');
-  if (allEvents.length) applyFilter();
-}
-
 function applyFilter() {
-  parsedEvents = filterMode === 'shifts' ? allEvents.filter(e => !e.allDay) : allEvents;
+  parsedEvents = allEvents;
   renderPreview(parsedEvents, allEvents);
   exportBtn.disabled = parsedEvents.length === 0;
 }
