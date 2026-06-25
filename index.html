@@ -149,7 +149,7 @@
 <header>
   <h1>Schedule → ICS</h1>
   <p>Convert your Altéa roster (.txt) or export (.csv) to a calendar file</p>
-  <p style="font-size:0.7rem;color:var(--muted);margin-top:4px">v2026-06-25c</p>
+  <p style="font-size:0.7rem;color:var(--muted);margin-top:4px">v2026-06-25d</p>
 </header>
 
 <div class="card">
@@ -529,17 +529,31 @@ function generateICS(events) {
       const d = ev.date.replace(/-/g,'');
       cal += `BEGIN:VEVENT\r\nUID:${uid}\r\nDTSTAMP:${now}\r\nDTSTART;VALUE=DATE:${d}\r\nDTEND;VALUE=DATE:${d}\r\nSUMMARY:${summary}\r\n${desc}END:VEVENT\r\n`;
     } else {
-      const startDT  = ev.date.replace(/-/g,'')+'T'+ev.start.replace(':','')+'00';
-      const endDate  = ev.endDate || ev.date;
-      const endDT    = endDate.replace(/-/g,'')+'T'+ev.end.replace(':','')+'00';
       const [sh, sm] = ev.start.split(':').map(Number);
       const [eh, em] = ev.end.split(':').map(Number);
       let durMins = (eh*60+em) - (sh*60+sm);
       if (durMins < 0) durMins += 1440;
-      const durH = Math.floor(durMins/60), durM = durMins%60;
-      const duration = `DURATION:PT${durH}H${durM > 0 ? durM+'M' : ''}\r\n`;
-      const crossesMidnight = endDate !== ev.date;
-      cal += `BEGIN:VEVENT\r\nUID:${uid}\r\nDTSTAMP:${now}\r\nDTSTART;TZID=${TZ}:${startDT}\r\nDTEND;TZID=${TZ}:${endDT}\r\n${crossesMidnight ? duration : ''}SUMMARY:${summary}\r\n${desc}END:VEVENT\r\n`;
+      const crossesMidnight = (ev.endDate || ev.date) !== ev.date;
+
+      if (crossesMidnight) {
+        // Outlook mobile ignores TZID on cross-midnight events — use UTC instead
+        // Copenhagen is UTC+2 in summer (CEST)
+        const toUTC = (dateStr, hh, mm) => {
+          const utcH = (hh - 2 + 24) % 24;
+          const carry = hh < 2 ? 1 : 0;
+          const d = new Date(dateStr + 'T00:00:00');
+          d.setDate(d.getDate() + carry);
+          const ud = d.toISOString().slice(0,10).replace(/-/g,'');
+          return `${ud}T${String(utcH).padStart(2,'0')}${String(mm).padStart(2,'0')}00Z`;
+        };
+        const startUTC = toUTC(ev.date, sh, sm);
+        const endUTC   = toUTC(ev.endDate || ev.date, eh, em);
+        cal += `BEGIN:VEVENT\r\nUID:${uid}\r\nDTSTAMP:${now}\r\nDTSTART:${startUTC}\r\nDTEND:${endUTC}\r\nSUMMARY:${summary}\r\n${desc}END:VEVENT\r\n`;
+      } else {
+        const startDT = ev.date.replace(/-/g,'')+'T'+ev.start.replace(':','')+'00';
+        const endDT   = (ev.endDate||ev.date).replace(/-/g,'')+'T'+ev.end.replace(':','')+'00';
+        cal += `BEGIN:VEVENT\r\nUID:${uid}\r\nDTSTAMP:${now}\r\nDTSTART;TZID=${TZ}:${startDT}\r\nDTEND;TZID=${TZ}:${endDT}\r\nSUMMARY:${summary}\r\n${desc}END:VEVENT\r\n`;
+      }
     }
   });
   return cal + 'END:VCALENDAR\r\n';
