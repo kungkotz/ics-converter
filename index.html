@@ -533,14 +533,13 @@ function generateICS(events) {
     const uid     = `${ev.date.replace(/-/g,'')}-${idx}@tcobuddy`;
     const summary = ev.summary.replace(/,/g,'\\,').replace(/;/g,'\\;');
     const desc    = ev.note ? `DESCRIPTION:${ev.note}\r\n` : '';
-    if (ev.allDay) {
+    if (ev.allDay || !ev.start || !ev.end) {
       const d = ev.date.replace(/-/g,'');
       cal += `BEGIN:VEVENT\r\nUID:${uid}\r\nDTSTAMP:${now}\r\nDTSTART;VALUE=DATE:${d}\r\nDTEND;VALUE=DATE:${d}\r\nSUMMARY:${summary}\r\n${desc}END:VEVENT\r\n`;
     } else {
       const startDT  = ev.date.replace(/-/g,'')+'T'+ev.start.replace(':','')+'00';
       const endDate  = ev.endDate || ev.date;
       const endDT    = endDate.replace(/-/g,'')+'T'+ev.end.replace(':','')+'00';
-      // For cross-midnight shifts, also add DURATION as a fallback for picky calendar apps
       const [sh, sm] = ev.start.split(':').map(Number);
       const [eh, em] = ev.end.split(':').map(Number);
       let durMins = (eh*60+em) - (sh*60+sm);
