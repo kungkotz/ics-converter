@@ -149,6 +149,7 @@
 <header>
   <h1>Schedule → ICS</h1>
   <p>Convert your Altéa roster (.txt) or export (.csv) to a calendar file</p>
+  <p style="font-size:0.7rem;color:var(--muted);margin-top:4px">v2026-06-25c</p>
 </header>
 
 <div class="card">
@@ -320,7 +321,7 @@ function parseAltea(raw) {
 
       if (tokens.length === 0) continue; // empty day — no event
 
-      if (hasFridag) events.push(makeFridag(dateStr));
+      if (hasFridag && shiftToks.length === 0) events.push(makeFridag(dateStr));
 
       if (shiftToks.length === 0) continue; // gave swap or fridag only — no extra event
 
