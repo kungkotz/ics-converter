@@ -149,7 +149,7 @@
 <header>
   <h1>Schedule → ICS</h1>
   <p>Convert your Altéa roster (.txt) or export (.csv) to a calendar file</p>
-  <p style="font-size:0.7rem;color:var(--muted);margin-top:4px">v2026-06-25d</p>
+  <p style="font-size:0.7rem;color:var(--muted);margin-top:4px">v2026-06-25f</p>
 </header>
 
 <div class="card">
@@ -531,27 +531,29 @@ function generateICS(events) {
     } else {
       const [sh, sm] = ev.start.split(':').map(Number);
       const [eh, em] = ev.end.split(':').map(Number);
-      let durMins = (eh*60+em) - (sh*60+sm);
-      if (durMins < 0) durMins += 1440;
       const crossesMidnight = (ev.endDate || ev.date) !== ev.date;
 
       if (crossesMidnight) {
-        // Outlook mobile ignores TZID on cross-midnight events — use UTC instead
-        // Copenhagen is UTC+2 in summer (CEST)
+        // Convert Copenhagen local time to UTC using the correct offset for that date
         const toUTC = (dateStr, hh, mm) => {
-          const utcH = (hh - 2 + 24) % 24;
-          const carry = hh < 2 ? 1 : 0;
-          const d = new Date(dateStr + 'T00:00:00');
-          d.setDate(d.getDate() + carry);
-          const ud = d.toISOString().slice(0,10).replace(/-/g,'');
-          return `${ud}T${String(utcH).padStart(2,'0')}${String(mm).padStart(2,'0')}00Z`;
+          const isoLocal = `${dateStr}T${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:00`;
+          // Get the UTC offset Copenhagen has on this specific date
+          const d = new Date(isoLocal);
+          const cph = new Intl.DateTimeFormat('en', {
+            timeZone: 'Europe/Copenhagen',
+            timeZoneName: 'shortOffset'
+          }).formatToParts(d).find(p => p.type === 'timeZoneName').value;
+          // cph is e.g. "GMT+2" or "GMT+1"
+          const offsetH = parseInt(cph.replace('GMT','')) || 0;
+          const utc = new Date(d.getTime() - offsetH * 3600000);
+          return utc.toISOString().replace(/[-:]/g,'').replace('.000','');
         };
         const startUTC = toUTC(ev.date, sh, sm);
-        const endUTC   = toUTC(ev.endDate || ev.date, eh, em);
+        const endUTC   = toUTC(ev.endDate, eh, em);
         cal += `BEGIN:VEVENT\r\nUID:${uid}\r\nDTSTAMP:${now}\r\nDTSTART:${startUTC}\r\nDTEND:${endUTC}\r\nSUMMARY:${summary}\r\n${desc}END:VEVENT\r\n`;
       } else {
         const startDT = ev.date.replace(/-/g,'')+'T'+ev.start.replace(':','')+'00';
-        const endDT   = (ev.endDate||ev.date).replace(/-/g,'')+'T'+ev.end.replace(':','')+'00';
+        const endDT   = ev.date.replace(/-/g,'')+'T'+ev.end.replace(':','')+'00';
         cal += `BEGIN:VEVENT\r\nUID:${uid}\r\nDTSTAMP:${now}\r\nDTSTART;TZID=${TZ}:${startDT}\r\nDTEND;TZID=${TZ}:${endDT}\r\nSUMMARY:${summary}\r\n${desc}END:VEVENT\r\n`;
       }
     }
