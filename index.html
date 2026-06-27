@@ -149,7 +149,7 @@
 <header>
   <h1>Schedule → ICS</h1>
   <p>Convert your Altéa roster (.txt) or export (.csv) to a calendar file</p>
-  <p style="font-size:0.7rem;color:var(--muted);margin-top:4px">v2026-06-25f</p>
+  <p style="font-size:0.7rem;color:var(--muted);margin-top:4px">v2026-06-27</p>
 </header>
 
 <div class="card">
@@ -507,7 +507,7 @@ function renderPreview(events, all) {
 
 // ── ICS Generation ─────────────────────────────────────────────────────
 function generateICS(events) {
-  const now = new Date().toISOString().replace(/[-:.]/g,'').slice(0,15)+'Z';
+  const now = new Date().toISOString().replace(/[-:]/g,'').replace('.000','');
   const tzBlock = [
     'BEGIN:VTIMEZONE',`TZID:${TZ}`,
     'BEGIN:STANDARD','DTSTART:19701025T030000','RRULE:FREQ=YEARLY;BYDAY=-1SU;BYMONTH=10',
@@ -517,45 +517,27 @@ function generateICS(events) {
     'END:VTIMEZONE'
   ].join('\r\n');
 
-  let cal = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//TCOBuddy//Schedule Converter//EN',
+  let cal = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Schedule//ICS//EN',
     'CALSCALE:GREGORIAN','METHOD:PUBLISH',`X-WR-CALNAME:${CAL_NAME}`,`X-WR-TIMEZONE:${TZ}`,tzBlock
   ].join('\r\n') + '\r\n';
 
+  const pad = n => String(n).padStart(2,'0');
+
   events.forEach((ev, idx) => {
-    const uid     = `${ev.date.replace(/-/g,'')}-${idx}@tcobuddy`;
+    const uid     = `july2026-${idx}@schedule`;
     const summary = ev.summary.replace(/,/g,'\\,').replace(/;/g,'\\;');
     const desc    = ev.note ? `DESCRIPTION:${ev.note}\r\n` : '';
+
     if (ev.allDay || !ev.start || !ev.end) {
-      const d = ev.date.replace(/-/g,'');
-      cal += `BEGIN:VEVENT\r\nUID:${uid}\r\nDTSTAMP:${now}\r\nDTSTART;VALUE=DATE:${d}\r\nDTEND;VALUE=DATE:${d}\r\nSUMMARY:${summary}\r\n${desc}END:VEVENT\r\n`;
+      const d    = ev.date.replace(/-/g,'');
+      const next = addDays(ev.date, 1).replace(/-/g,''); // RFC5545: DTEND is exclusive next day
+      cal += `BEGIN:VEVENT\r\nUID:${uid}\r\nDTSTAMP:${now}\r\nDTSTART;VALUE=DATE:${d}\r\nDTEND;VALUE=DATE:${next}\r\nSUMMARY:${summary}\r\n${desc}END:VEVENT\r\n`;
     } else {
       const [sh, sm] = ev.start.split(':').map(Number);
       const [eh, em] = ev.end.split(':').map(Number);
-      const crossesMidnight = (ev.endDate || ev.date) !== ev.date;
-
-      if (crossesMidnight) {
-        // Convert Copenhagen local time to UTC using the correct offset for that date
-        const toUTC = (dateStr, hh, mm) => {
-          const isoLocal = `${dateStr}T${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:00`;
-          // Get the UTC offset Copenhagen has on this specific date
-          const d = new Date(isoLocal);
-          const cph = new Intl.DateTimeFormat('en', {
-            timeZone: 'Europe/Copenhagen',
-            timeZoneName: 'shortOffset'
-          }).formatToParts(d).find(p => p.type === 'timeZoneName').value;
-          // cph is e.g. "GMT+2" or "GMT+1"
-          const offsetH = parseInt(cph.replace('GMT','')) || 0;
-          const utc = new Date(d.getTime() - offsetH * 3600000);
-          return utc.toISOString().replace(/[-:]/g,'').replace('.000','');
-        };
-        const startUTC = toUTC(ev.date, sh, sm);
-        const endUTC   = toUTC(ev.endDate, eh, em);
-        cal += `BEGIN:VEVENT\r\nUID:${uid}\r\nDTSTAMP:${now}\r\nDTSTART:${startUTC}\r\nDTEND:${endUTC}\r\nSUMMARY:${summary}\r\n${desc}END:VEVENT\r\n`;
-      } else {
-        const startDT = ev.date.replace(/-/g,'')+'T'+ev.start.replace(':','')+'00';
-        const endDT   = ev.date.replace(/-/g,'')+'T'+ev.end.replace(':','')+'00';
-        cal += `BEGIN:VEVENT\r\nUID:${uid}\r\nDTSTAMP:${now}\r\nDTSTART;TZID=${TZ}:${startDT}\r\nDTEND;TZID=${TZ}:${endDT}\r\nSUMMARY:${summary}\r\n${desc}END:VEVENT\r\n`;
-      }
+      const startStr = `${ev.date.replace(/-/g,'')}T${pad(sh)}${pad(sm)}00`;
+      const endStr   = `${(ev.endDate||ev.date).replace(/-/g,'')}T${pad(eh)}${pad(em)}00`;
+      cal += `BEGIN:VEVENT\r\nUID:${uid}\r\nDTSTAMP:${now}\r\nDTSTART;TZID=${TZ}:${startStr}\r\nDTEND;TZID=${TZ}:${endStr}\r\nSUMMARY:${summary}\r\n${desc}END:VEVENT\r\n`;
     }
   });
   return cal + 'END:VCALENDAR\r\n';
