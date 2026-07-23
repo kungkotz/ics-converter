@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Schedule → ICS Converter</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap');
+
+  :root {
+    --bg: #f4f5f7;
+    --surface: #ffffff;
+    --border: #dde0e8;
+    --accent: #3a7ef5;
+    --accent2: #6a59f0;
+    --success: #2db87a;
+    --text: #1a1d26;
+    --muted: #8a90a0;
+    --mono: 'DM Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d0f14;
+      --surface: #161920;
+      --border: #252830;
+      --accent: #4f8ef7;
+      --accent2: #7c6af7;
+      --success: #3ecf8e;
+      --text: #e8eaf0;
+      --muted: #6b7080;
+    }
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 48px 16px;
+  }
+
+  header { text-align: center; margin-bottom: 40px; }
+  header h1 {
+    font-family: var(--sans); font-weight: 800;
+    font-size: clamp(1.8rem, 5vw, 2.8rem); letter-spacing: -0.03em;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  header p { margin-top: 8px; color: var(--muted); font-size: 0.85rem; }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 28px; width: 100%; max-width: 640px; margin-bottom: 20px;
+  }
+  .card h2 {
+    font-family: var(--sans); font-size: 0.75rem; font-weight: 600;
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 16px;
+  }
+
+  .dropzone {
+    border: 2px dashed var(--border); border-radius: 8px; padding: 36px 20px;
+    text-align: center; cursor: pointer; transition: border-color 0.2s, background 0.2s; position: relative;
+  }
+  .dropzone:hover, .dropzone.drag-over { border-color: var(--accent); background: rgba(79,142,247,0.05); }
+  .dropzone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .dropzone .icon { font-size: 2.2rem; margin-bottom: 10px; }
+  .dropzone .label { font-family: var(--sans); font-weight: 600; font-size: 0.95rem; color: var(--text); }
+  .dropzone .sublabel { font-size: 0.78rem; color: var(--muted); margin-top: 4px; }
+  .dropzone-sm { padding: 20px 16px; }
+  .dropzone-sm .label { font-size: 0.86rem; }
+  .file-name { margin-top: 12px; font-size: 0.8rem; color: var(--accent); }
+  .ot-break { margin-top: 14px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .ot-break table { width: 100%; border-collapse: collapse; font-size: 0.74rem; }
+  .ot-break td { padding: 5px 10px; border-bottom: 1px solid var(--border); }
+  .ot-break tr:last-child td { border-bottom: none; }
+  .ot-break .d { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .ot-break .h { text-align: right; font-family: var(--mono); }
+  .ot-break .k1 { color: var(--accent); }
+  .ot-break .k2 { color: #c98a00; }
+  .ot-break .kx { color: var(--muted); }
+
+  .preview-wrap {
+    max-height: 300px; overflow-y: auto; border-radius: 6px; border: 1px solid var(--border);
+  }
+  .preview-wrap::-webkit-scrollbar { width: 6px; }
+  .preview-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+  thead tr { background: var(--bg); position: sticky; top: 0; z-index: 1; }
+  th {
+    padding: 8px 12px; text-align: left; color: var(--muted); font-weight: 500;
+    letter-spacing: 0.06em; text-transform: uppercase; font-size: 0.68rem; border-bottom: 1px solid var(--border);
+  }
+  td { padding: 7px 12px; border-bottom: 1px solid var(--border); }
+  tr:last-child td { border-bottom: none; }
+
+  .badge {
+    display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 0.68rem; font-weight: 500; white-space: nowrap;
+  }
+  .badge-shift           { background: rgba(79,142,247,0.15);  color: var(--accent); }
+  .badge-extra-company   { background: rgba(45,184,122,0.15);  color: #2db87a; }
+  .badge-extra-colleague { background: rgba(247,179,79,0.15);  color: #c98a00; }
+  .badge-dayoff          { background: rgba(138,144,160,0.12); color: var(--muted); }
+  .badge-fridag          { background: rgba(124,106,247,0.15); color: #7c6af7; }
+  .badge-ot1             { background: rgba(79,142,247,0.18);  color: var(--accent); border: 1px solid rgba(79,142,247,0.45); font-weight: 700; }
+  .badge-ot2             { background: rgba(247,179,79,0.20);  color: #c98a00; border: 1px solid rgba(247,179,79,0.5);  font-weight: 700; }
+
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+  .stat-box {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;
+  }
+  .stat-box .stat-label { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+  .stat-box .stat-value { font-family: var(--sans); font-weight: 700; font-size: 1.15rem; color: var(--text); }
+  .stat-box .stat-sub   { font-size: 0.7rem; color: var(--muted); margin-top: 2px; }
+  .stat-box.accent  { border-color: rgba(79,142,247,0.4); }
+  .stat-box.success { border-color: rgba(45,184,122,0.4); }
+  .stat-box.warn    { border-color: rgba(247,179,79,0.4); }
+  .stat-box.purple  { border-color: rgba(124,106,247,0.4); }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px; padding: 11px 22px;
+    border-radius: 7px; border: none; font-family: var(--sans); font-weight: 600;
+    font-size: 0.88rem; cursor: pointer; transition: opacity 0.15s, transform 0.1s;
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #fff; width: 100%; justify-content: center; font-size: 0.95rem; padding: 14px;
+  }
+  .btn-primary:not(:disabled):hover { opacity: 0.88; }
+
+  .status { padding: 10px 14px; border-radius: 6px; font-size: 0.8rem; margin-top: 12px; display: none; }
+  .status.error   { background: rgba(247,99,99,0.12); border: 1px solid rgba(247,99,99,0.3); color: #f76363; }
+  .status.success { background: rgba(62,207,142,0.12); border: 1px solid rgba(62,207,142,0.3); color: var(--success); }
+  .status.show    { display: block; }
+
+  .empty-state { text-align: center; padding: 32px; color: var(--muted); font-size: 0.82rem; }
+
+  .btn-clear {
+    margin-top: 10px; background: transparent; border: 1px solid var(--border);
+    color: var(--muted); font-size: 0.8rem; padding: 7px 14px; width: 100%;
+    justify-content: center;
+  }
+  .btn-clear:hover { border-color: #f76363; color: #f76363; }
+
+  .annot { color: var(--muted); font-size: 0.7rem; margin-left: 4px; }
+
+  .pay-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .pay-field { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+  .pay-field label { display: block; font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  .pay-field input {
+    width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+    padding: 8px 10px; font-family: var(--mono); font-size: 0.95rem; color: var(--text);
+  }
+  .pay-field input:focus { outline: none; border-color: var(--accent); }
+  .pay-rate { display: block; font-size: 0.68rem; color: var(--muted); margin-top: 5px; }
+  .pay-out { margin-top: 16px; }
+  .pay-row { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 2px; border-bottom: 1px solid var(--border); font-size: 0.82rem; }
+  .pay-row span { color: var(--muted); }
+  .pay-row b { font-family: var(--mono); }
+  .pay-row.total { border-bottom: none; margin-top: 4px; padding-top: 12px; font-size: 0.95rem; }
+  .pay-row.total span { color: var(--text); font-family: var(--sans); font-weight: 600; }
+  .pay-row.total b { color: var(--success); font-size: 1.05rem; }
+  .pay-empty { text-align: center; color: var(--muted); font-size: 0.8rem; padding: 14px; }
+  .pay-note {
+    margin-top: 14px; font-size: 0.72rem; line-height: 1.5; color: var(--muted);
+    background: rgba(79,142,247,0.06); border: 1px solid rgba(79,142,247,0.2);
+    border-radius: 8px; padding: 10px 12px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Schedule → ICS</h1>
+  <p>Convert your Altéa roster (.txt) or export (.csv) to a calendar file</p>
+  <p style="font-size:0.7rem;color:var(--muted);margin-top:4px">build 2026-07-23 · a5fcc64 · <span style="color:var(--success)">fresh-ids</span></p>
+</header>
+
+<div class="card">
+  <h2>1 — Upload roster</h2>
+  <div class="dropzone" id="dropzone">
+    <input type="file" id="fileInput" accept=".txt,.csv,.rtf,.doc">
+    <div class="icon">📂</div>
+    <div class="label">Current roster</div>
+    <div class="sublabel">Drives your calendar · Altéa .txt, .doc/.rtf, .csv</div>
+  </div>
+  <div class="file-name" id="fileName"></div>
+
+  <div class="dropzone dropzone-sm" id="dropzone2" style="margin-top:12px">
+    <input type="file" id="fileInput2" accept=".txt,.csv,.rtf,.doc">
+    <div class="label">Original roster <span style="color:var(--muted);font-weight:400">— optional, unlocks OT1</span></div>
+    <div class="sublabel">The roster as first issued, to compare against</div>
+  </div>
+  <div class="file-name" id="fileName2"></div>
+
+  <button class="btn btn-clear" id="clearBtn" style="display:none">✕ Clear all</button>
+</div>
+
+<div class="card">
+  <h2>2 — Preview</h2>
+  <div id="previewContent">
+    <div class="empty-state">Upload a file to see a preview</div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>4 — OPS pay check</h2>
+  <p style="font-size:0.78rem;color:var(--muted);margin:-6px 0 16px">
+    Rates for Lønklasse 4, over 36 months anciennitet. All figures pre-tax and pre-AM-bidrag.
+  </p>
+  <div class="pay-grid">
+    <div class="pay-field">
+      <label>OT1 — hours</label>
+      <input type="number" step="0.25" min="0" id="in-ot1" placeholder="0" inputmode="decimal">
+      <span class="pay-rate">× 346,85 kr/hr</span>
+      <span class="pay-rate" id="ot1-hint" style="color:var(--accent)"></span>
+    </div>
+    <div class="pay-field">
+      <label>OT2 — hours</label>
+      <input type="number" step="0.25" min="0" id="in-ot2" placeholder="0" inputmode="decimal">
+      <span class="pay-rate">× 481,73 kr/hr</span>
+      <span class="pay-rate" id="ot2-hint" style="color:var(--accent)"></span>
+    </div>
+    <div class="pay-field">
+      <label>LVA — count</label>
+      <input type="number" step="1" min="0" id="in-lva" placeholder="0" inputmode="numeric">
+      <span class="pay-rate">× 166,57 kr</span>
+    </div>
+    <div class="pay-field">
+      <label>SVA — count</label>
+      <input type="number" step="1" min="0" id="in-sva" placeholder="0" inputmode="numeric">
+      <span class="pay-rate">× 347,62 kr</span>
+    </div>
+  </div>
+  <div class="pay-out" id="pay-out"></div>
+  <div class="ot-break" id="ot-break" style="display:none"></div>
+  <p class="pay-note" id="pay-note">
+    Enter the hours and counts from your roster or lønseddel to see the kr value.
+    Auto-filling these from the schedule needs your lokalaftale overtime rule — once
+    you confirm it, this panel can derive them and check against your payslip.
+  </p>
+</div>
+
+<div class="card">
+  <h2>5 — Export</h2>
+  <button class="btn btn-primary" id="exportBtn" disabled>⬇ Download .ics File</button>
+  <div class="status" id="statusMsg"></div>
+</div>
+
+<script>
+const TZ       = 'Europe/Copenhagen';
+const CAL_NAME = 'Work Schedule';
+
+let parsedEvents     = [];
+let allEvents        = [];
+let actualRaw        = null;   // current roster text (also drives the calendar)
+let originalRaw      = null;   // original roster text (for OT1)
+let OT_BY_DATE       = {};     // iso date → { ot1, ot2, origKeys }
+let detectedYear     = new Date().getFullYear();
+let detectedMonth    = new Date().getMonth() + 1;
+let detectedFilename = 'schedule';
+
+const fileInput      = document.getElementById('fileInput');
+const dropzone       = document.getElementById('dropzone');
+const fileName       = document.getElementById('fileName');
+const exportBtn      = document.getElementById('exportBtn');
+const statusMsg      = document.getElementById('statusMsg');
+const previewContent = document.getElementById('previewContent');
+
+const clearBtn       = document.getElementById('clearBtn');
+
+clearBtn.addEventListener('click', () => {
+  window.location.reload(true);
+});
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault(); dropzone.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
+
+function handleFile(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  detectedFilename = file.name.replace(/\.[^.]+$/, '');
+  fileName.textContent = '📄 ' + file.name;
+  setStatus('', '');
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const raw = e.target.result;
+      actualRaw = raw;
+      allEvents = ext === 'csv' ? parseCSV(raw) : parseAltea(raw);
+      clearBtn.style.display = 'block';
+      applyFilter();
+    } catch(err) { setStatus('error', 'Parse error: ' + err.message); }
+  };
+  reader.readAsText(file, 'latin1');
+}
+
+const fileInput2 = document.getElementById('fileInput2');
+const dropzone2  = document.getElementById('dropzone2');
+const fileName2  = document.getElementById('fileName2');
+function handleFile2(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    originalRaw = e.target.result;
+    fileName2.textContent = '📄 ' + file.name;
+    clearBtn.style.display = 'block';
+    applyFilter();
+  };
+  reader.readAsText(file, 'latin1');
+}
+fileInput2.addEventListener('change', () => { if (fileInput2.files[0]) handleFile2(fileInput2.files[0]); });
+dropzone2.addEventListener('dragover', e => { e.preventDefault(); dropzone2.classList.add('drag-over'); });
+dropzone2.addEventListener('dragleave', () => dropzone2.classList.remove('drag-over'));
+dropzone2.addEventListener('drop', e => {
+  e.preventDefault(); dropzone2.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) handleFile2(e.dataTransfer.files[0]);
+});
+
+function applyFilter() {
+  parsedEvents = allEvents;
+  buildOTMap(allEvents);
+  annotateOT(allEvents);
+  renderPreview(parsedEvents, allEvents);
+  exportBtn.disabled = parsedEvents.length === 0;
+  autofillPay(allEvents);
+}
+
+// Build OT_BY_DATE. With both rosters we derive OT1 + OT2; with only the current
+// roster we can still identify OT2 (Fridag work) on its own.
+function buildOTMap(events) {
+  OT_BY_DATE = {};
+  if (actualRaw && originalRaw) { OT_BY_DATE = deriveOT(actualRaw, originalRaw).byDate; return; }
+  const dur = e => { const [sh,sm]=e.start.split(':').map(Number),[eh,em]=e.end.split(':').map(Number);
+    let m=(eh*60+em)-(sh*60+sm); if(m<0)m+=1440; return m/60; };
+  for (const e of events) {
+    if (e.type !== 'extra-company') continue;
+    if (!OT_BY_DATE[e.date]) OT_BY_DATE[e.date] = { ot1:0, ot2:0, origKeys:new Set() };
+    OT_BY_DATE[e.date].ot2 += dur(e);
+  }
+}
+
+// ── Interval helpers ───────────────────────────────────────────────────
+// Times are minutes from midnight of the roster day; an end <= start rolls +1 day.
+const ivMins = t => +t.slice(0,2)*60 + +t.slice(2);
+function mkIv(s, e) { let a = ivMins(s), b = ivMins(e); if (b <= a) b += 1440; return [a, b]; }
+function mergeIv(list) {
+  const s = list.slice().sort((x,y) => x[0]-y[0]); const out = [];
+  for (const iv of s) {
+    const last = out[out.length-1];
+    if (last && iv[0] <= last[1]) last[1] = Math.max(last[1], iv[1]);
+    else out.push([iv[0], iv[1]]);
+  }
+  return out;
+}
+// Everything in A that is not covered by B.
+function subIv(A, B) {
+  let cur = mergeIv(A);
+  for (const [bs, be] of mergeIv(B)) {
+    const next = [];
+    for (const [s, e] of cur) {
+      if (be <= s || bs >= e) { next.push([s, e]); continue; }
+      if (bs > s) next.push([s, Math.min(bs, e)]);
+      if (be < e) next.push([Math.max(be, s), e]);
+    }
+    cur = next;
+  }
+  return cur.filter(([s,e]) => e - s > 0.001);
+}
+const ivHours = list => list.reduce((a,[s,e]) => a + (e-s)/60, 0);
+const mmss = m => String(Math.floor((m%1440)/60)).padStart(2,'0') + ':' + String(m%60).padStart(2,'0');
+const ivLabel = list => list.map(([s,e]) => mmss(s)+'–'+mmss(e)).join(', ');
+
+// Per-day intervals + fridag/byt/recreated flags, for OT derivation.
+// Byt is "BYT" optionally followed by a 3-letter code (BYT/ALE/…, BYT ALE);
+// segments on a Byt line are colleague hours and never count as OT.
+function rosterDays(raw) {
+  const text = (typeof raw === 'string' ? raw : '')
+    .replace(/\\'d8/gi,'Ø').replace(/\\'f8/gi,'ø').replace(/\\'e6/gi,'æ')
+    .replace(/\\'c6/gi,'Æ').replace(/\\'e5/gi,'å').replace(/\\'c5/gi,'Å')
+    .replace(/\\par\b/gi,'\n').replace(/\\[a-zA-Z]+-?\d*\s?/g,'').replace(/[{}]/g,'').replace(/\r/g,'');
+  const days = {}; let cur = null;
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue;
+    let iso, rest;
+    let m = line.match(/^\s*[A-Za-z]+\s+(\d{4})\/(\d{2})\/(\d{2})\s*:\s?(.*)$/);
+    if (m) { iso = `${m[1]}-${m[2]}-${m[3]}`; rest = m[4]; cur = iso; }
+    else {
+      let c = line.match(/^\s*(\d{1,2})\s+(Mon|Tues|Wednes|Thurs|Fri|Satur|Sun)day\b\s*(.*)$/i);
+      if (c) { iso = `${detectedYear}-${String(detectedMonth).padStart(2,'0')}-${String(+c[1]).padStart(2,'0')}`; rest = c[3]; cur = iso; }
+      else { iso = cur; rest = line; }
+    }
+    if (!iso) continue;
+    if (!days[iso]) days[iso] = { fridag:false, byt:false, recreated:false, iv:[], bytIv:[], bytWith:null };
+    const d = days[iso];
+    const toks = rest.trim().split(/\s+/).filter(Boolean);
+    // Byt applies to the segments written on the same line as the marker.
+    const bytTok = toks.find(t => /^byt\b/i.test(t) || /^byt[\/\-]/i.test(t));
+    const lineByt = !!bytTok;
+    if (lineByt) {
+      d.byt = true;
+      let code = (bytTok.match(/^byt[\/\-\s]*([A-Za-z]{3})/i) || [])[1];
+      if (!code) { const i = toks.indexOf(bytTok); const nx = toks[i+1] || ''; if (/^[A-Za-z]{3}$/.test(nx)) code = nx; }
+      if (code) d.bytWith = code.toUpperCase();
+    }
+    for (const t of toks) {
+      if (/^fridag$/i.test(t)) d.fridag = true;
+      else if (/^recreated$/i.test(t)) d.recreated = true;
+      else {
+        const s = t.match(/^(\d{4})-(\d{4})[A-Za-z]?$/);
+        if (s) (lineByt ? d.bytIv : d.iv).push(mkIv(s[1], s[2]));
+      }
+    }
+  }
+  for (const d of Object.values(days)) {
+    d.iv = mergeIv(d.iv); d.bytIv = mergeIv(d.bytIv);
+    d.h = ivHours(d.iv);
+  }
+  return days;
+}
+
+// OT1 = the parts of the day worked that were NOT in the original roster
+// (computed as an interval difference, so only the added slice counts).
+// OT2 = company hours on a Fridag. Byt and Recreated never count.
+function deriveOT(rawA, rawB) {
+  const A = rosterDays(rawA), B = rosterDays(rawB);
+  const sum = D => Object.values(D).reduce((a,d) => a + d.h, 0);
+  const actual = sum(A) >= sum(B) ? A : B;   // more hours = the current roster
+  const orig   = actual === A ? B : A;
+  let ot1 = 0, ot2 = 0; const rows = []; const byDate = {};
+  for (const iso of Object.keys(actual).sort()) {
+    const a = actual[iso], o = orig[iso] || { h:0, fridag:false, iv:[], bytIv:[] };
+    const dd = iso.slice(8);
+    if (a.byt && !a.iv.length) { rows.push([dd, 'Byt' + (a.bytWith ? ' ('+a.bytWith+')' : '') + ' — excluded', 'kx', '']); continue; }
+    if (a.fridag && a.h > 0) {
+      ot2 += a.h;
+      byDate[iso] = { ot1:0, ot2:a.h, ot1Iv:[], ot2Iv:a.iv.slice() };
+      rows.push([dd, 'Fridag work → OT2', 'k2', '+'+a.h]); continue;
+    }
+    if (a.recreated) { rows.push([dd, 'Recreated — excluded', 'kx', '']); continue; }
+    // planned = the original day's intervals (a fridag was planned as free)
+    const planned = o.fridag ? [] : o.iv;
+    // subtract the plan, then any colleague (Byt) hours
+    const gained = subIv(subIv(a.iv, planned), a.bytIv);
+    const extra = ivHours(gained);
+    if (extra > 0.001) {
+      ot1 += extra;
+      byDate[iso] = { ot1:extra, ot2:0, ot1Iv:gained, ot2Iv:[] };
+      const why = planned.length ? `Changed from ${ivLabel(planned)}` : 'Pickup on a day off';
+      rows.push([dd, `${why} → OT1 ${ivLabel(gained)}`, 'k1', '+'+extra.toFixed(2)]);
+    }
+  }
+  return { ot1: Math.round(ot1*100)/100, ot2: Math.round(ot2*100)/100, rows, byDate };
+}
+
+// Tag each event with the OT it earned. An event only carries the OT that falls
+// inside its own hours, so a shift that was merely extended shows just the added slice.
+function annotateOT(events) {
+  events.forEach(e => { e.otTag = null; e.otHours = 0; e.otWindow = ''; e.otPartial = false; });
+  for (const e of events) {
+    if (e.allDay || e.type === 'extra-colleague' || !e.start || !e.end) continue;
+    const d = OT_BY_DATE[e.date];
+    if (!d) continue;
+    const evIv = [mkIv(e.start.replace(':',''), e.end.replace(':',''))];
+    if (e.type === 'extra-company') {
+      const own = subIv(evIv, subIv(evIv, d.ot2Iv && d.ot2Iv.length ? d.ot2Iv : evIv));
+      e.otTag = 'OT2';
+      e.otHours = ivHours(own.length ? own : evIv);
+      e.otWindow = '';
+      continue;
+    }
+    if (!d.ot1Iv || !d.ot1Iv.length) continue;
+    // intersect this event with the day's OT1 intervals
+    const overlap = subIv(evIv, subIv(evIv, d.ot1Iv));
+    const h = ivHours(overlap);
+    if (h > 0.001) {
+      e.otTag = 'OT1';
+      e.otHours = h;
+      e.otPartial = h < ivHours(evIv) - 0.001;   // only part of the shift was OT1
+      e.otWindow = e.otPartial ? ivLabel(overlap) : '';
+    }
+  }
+}
+
+// OT2 = company hours worked on a scheduled Fridag (parser tags these 'extra-company').
+// Byt (colleague swap) hours are tracked separately and never counted.
+function autofillPay(events) {
+  const dur = e => { const [sh,sm]=e.start.split(':').map(Number),[eh,em]=e.end.split(':').map(Number);
+    let m=(eh*60+em)-(sh*60+sm); if(m<0)m+=1440; return m/60; };
+  const f1 = document.getElementById('in-ot1'), f2 = document.getElementById('in-ot2');
+  const h1 = document.getElementById('ot1-hint'), h2 = document.getElementById('ot2-hint');
+  const brk = document.getElementById('ot-break'), note = document.getElementById('pay-note');
+
+  const fridagShifts = events.filter(e => e.type === 'extra-company');
+  const ot2fromCurrent = fridagShifts.reduce((a,e)=>a+dur(e),0);
+  const byt = events.filter(e => e.type === 'extra-colleague').reduce((a,e)=>a+dur(e),0);
+
+  if (actualRaw && originalRaw) {
+    // Both rosters present → derive OT1 and OT2 from the comparison
+    const { ot1, ot2, rows } = deriveOT(actualRaw, originalRaw);
+    f1.value = ot1; f2.value = ot2;
+    h1.textContent = `auto: ${ot1}h above plan`;
+    h2.textContent = `auto: ${ot2}h Fridag work`;
+    brk.style.display = 'block';
+    brk.innerHTML = '<table>' + rows.map(([d,txt,cls,h]) =>
+      `<tr><td class="d">${d}</td><td class="${cls}">${txt}</td><td class="h ${cls}">${h}</td></tr>`).join('') + '</table>';
+    note.innerHTML = `<b>OT1 and OT2 derived from both rosters.</b> Each line above shows what counted. `
+      + `Recreated shifts and Byt (colleague swaps) are excluded, and Fridag work goes to OT2 — never both. `
+      + `LVA/SVA: enter counts from your roster.`;
+  } else {
+    // Only the current roster → OT2 auto, OT1 stays manual
+    brk.style.display = 'none';
+    if (ot2fromCurrent > 0) { f2.value = Math.round(ot2fromCurrent*100)/100; h2.textContent = `auto: ${f2.value}h across ${fridagShifts.length} Fridag shift${fridagShifts.length>1?'s':''}`; }
+    else h2.textContent = 'no Fridag shifts in this file';
+    h1.textContent = '';
+    note.innerHTML = `<b>OT2 auto-filled</b> from Fridag shifts. `
+      + (byt>0 ? `${byt}h Byt excluded. ` : '')
+      + `<b>Add your original roster above</b> to auto-derive OT1 (hours worked beyond plan). `
+      + `LVA/SVA: enter counts from your roster.`;
+  }
+  calcPay();
+}
+
+function detectYearMonth(text) {
+  const months = ['january','february','march','april','may','june',
+                  'july','august','september','october','november','december'];
+  const lower = text.toLowerCase();
+  for (let i = 0; i < months.length; i++) {
+    if (lower.includes(months[i])) { detectedMonth = i + 1; break; }
+  }
+  const y = text.match(/20\d{2}/);
+  if (y) detectedYear = parseInt(y[0]);
+}
+
+function addDays(dateStr, n) {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+function parseAnnotHours(tokens) {
+  let extra = 0;
+  for (const t of tokens) {
+    const m = t.match(/^[A-Z]{2,}\(([\d.]+)\)/i);
+    if (m) extra += parseFloat(m[1]);
+  }
+  return extra;
+}
+
+function shiftHours(ev) {
+  if (ev.allDay || !ev.start || !ev.end) return 0;
+  const [sh, sm] = ev.start.split(':').map(Number);
+  const [eh, em] = ev.end.split(':').map(Number);
+  let mins = (eh * 60 + em) - (sh * 60 + sm);
+  if (mins < 0) mins += 1440;
+  return (mins / 60) + (ev.extraHours || 0);
+}
+
+function fmtHours(h) {
+  const hrs  = Math.floor(h);
+  const mins = Math.round((h - hrs) * 60);
+  return mins ? `${hrs}h ${mins}m` : `${hrs}h`;
+}
+
+function makeShiftEvent(dateStr, start, end, type, summary, annots, extraHours) {
+  const [sh, sm] = start.split(':').map(Number);
+  const [eh, em] = end.split(':').map(Number);
+  const endDate  = (eh * 60 + em) < (sh * 60 + sm) ? addDays(dateStr, 1) : dateStr;
+  return { date: dateStr, summary, start, end, endDate, allDay: false, type, note: annots, extraHours: extraHours || 0 };
+}
+function makeFridag(dateStr) {
+  return { date: dateStr, summary: 'Fridag', start: null, end: null, endDate: dateStr, allDay: true, type: 'fridag', note: '', extraHours: 0 };
+}
+
+function parseAltea(raw) {
+  let text = raw
+    .replace(/\\'d8/gi,'Ø').replace(/\\'f8/gi,'ø')
+    .replace(/\\'e6/gi,'æ').replace(/\\'c6/gi,'Æ')
+    .replace(/\\'e5/gi,'å').replace(/\\'c5/gi,'Å')
+    .replace(/\\[a-z]+[-]?\d*[ ]?/gi,'').replace(/[{}]/g,'').replace(/\r/g,'');
+
+  detectYearMonth(text);
+
+  const colleagueMap = {};
+  for (const line of text.split('\n')) {
+    const m = line.match(/Byt\/([A-Z]+)\/[^\s]*\s+(\d{8})/i);
+    if (m) {
+      const ds = m[2];
+      colleagueMap[`${ds.slice(0,4)}-${ds.slice(4,6)}-${ds.slice(6,8)}`] = m[1].toUpperCase();
+    }
+  }
+  // Colleague code written inline on the day line, e.g. "Byt/ALE/01" or "BYT ALE"
+  const bytCode = toks => {
+    const t = toks.find(x => /^byt\b/i.test(x) || /^byt[\/\-]/i.test(x));
+    if (!t) return null;
+    let c = (t.match(/^byt[\/\-\s]*([A-Za-z]{3})/i) || [])[1];
+    if (!c) { const i = toks.indexOf(t); if (/^[A-Za-z]{3}$/.test(toks[i+1] || '')) c = toks[i+1]; }
+    return c ? c.toUpperCase() : null;
+  };
+
+  const events = [];
+
+  for (const line of text.split('\n').map(l => l.trim()).filter(Boolean)) {
+
+    const altea = line.match(/^\w+\s+(\d{4})\/(\d{2})\/(\d{2})\s*:\s*(.*)/);
+    if (altea) {
+      const dateStr = `${altea[1]}-${altea[2]}-${altea[3]}`;
+      const tokens  = altea[4].trim().split(/\s+/).filter(Boolean);
+
+      const hasByt    = tokens.some(t => /^byt\b/i.test(t) || /^byt[\/\-]/i.test(t));
+      const hasFridag = tokens.some(t => /^fridag$/i.test(t));
+      const shiftToks = tokens.filter(t => /^\d{4}-\d{4}[A-Z]?$/.test(t));
+      const annotToks = tokens.filter(t => /^[A-Z]{2,}\(/.test(t));
+      const annotStr  = annotToks.join(' ');
+      const extraHours = parseAnnotHours(annotToks);
+
+      if (tokens.length === 0) continue;
+
+      if (hasFridag && shiftToks.length === 0) events.push(makeFridag(dateStr));
+
+      if (shiftToks.length === 0) continue;
+
+      for (const shiftStr of shiftToks) {
+        const tm = shiftStr.match(/^(\d{2})(\d{2})-(\d{2})(\d{2})[A-Z]?$/);
+        if (!tm) continue;
+        const start = `${tm[1]}:${tm[2]}`, end = `${tm[3]}:${tm[4]}`;
+        let type, summary;
+        const timeLabel = `${tm[1]}${tm[2]}-${tm[3]}${tm[4]}`;
+        if (hasByt) {
+          const colleague = bytCode(tokens) || colleagueMap[dateStr];
+          type    = 'extra-colleague';
+          summary = `${timeLabel} (Byt${colleague ? ' ' + colleague : ''})`; // code shown as-is, not assumed to be the colleague's
+          if (colleague && !annotStr) annotToks.push(colleague);
+        } else if (hasFridag) {
+          type    = 'extra-company';
+          summary = `${timeLabel} (Fridag)`;
+        } else {
+          type    = 'shift';
+          summary = timeLabel;
+        }
+        events.push(makeShiftEvent(dateStr, start, end, type, summary, annotStr, extraHours));
+      }
+      continue;
+    }
+
+    const legacy = line.match(/^(\d{1,2})\s+\w+\s+([\w\-:().]+(?:\s+[\w\-.()]+)?)\s*(.*)/);
+    if (legacy) {
+      const day = parseInt(legacy[1]);
+      if (day < 1 || day > 31) continue;
+      const dateStr = `${detectedYear}-${String(detectedMonth).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+      const shift   = legacy[2].trim();
+      const note    = legacy[3].trim();
+      if (/^fridag$/i.test(shift)) { events.push(makeFridag(dateStr)); continue; }
+      const tm = shift.match(/^(\d{2})(\d{2})-(\d{2})(\d{2})[A-Z]?$/);
+      if (tm) {
+        events.push(makeShiftEvent(dateStr, `${tm[1]}:${tm[2]}`, `${tm[3]}:${tm[4]}`, 'shift',
+          `${tm[1]}${tm[2]}-${tm[3]}${tm[4]}`, '', 0));
+      }
+    }
+  }
+  return events;
+}
+
+function parseCSV(raw) {
+  const fixed = raw.replace(/\x00/g,'').replace(/F\nL /gi,'FØL ').replace(/f\nl /gi,'føl ');
+  detectYearMonth(fixed);
+  const lines = fixed.split('\n').map(l=>l.trim()).filter(Boolean);
+  if (lines.length < 2) throw new Error('CSV appears empty');
+  const events = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = splitCSVLine(lines[i]);
+    if (cols.length < 3) continue;
+    let subject     = cols[0].trim();
+    const startDate = cols[1].trim();
+    const startTime = cols[2].trim();
+    const endTime   = cols[4] ? cols[4].trim() : '';
+    const allDay    = cols[5] ? cols[5].trim().toUpperCase() === 'TRUE' : false;
+    if (!startDate) continue;
+    const dp = startDate.split('/');
+    if (dp.length < 3) continue;
+    const dateStr = `${dp[2]}-${dp[1].padStart(2,'0')}-${dp[0].padStart(2,'0')}`;
+    subject = subject.replace(/^\d{4}-\d{4}[A-Z]?\s+/,'').replace(/[()]/g,'').trim();
+    subject = subject.replace(/\b\w/g,c=>c.toUpperCase());
+    if (/^fridag$/i.test(subject)) { events.push(makeFridag(dateStr)); continue; }
+    if (allDay || !startTime) {
+      events.push({ date: dateStr, summary: subject, start: null, end: null, endDate: dateStr, allDay: true, type: 'dayoff', note: '', extraHours: 0 });
+    } else {
+      let endDate = dateStr;
+      if (endTime) {
+        const sh = parseInt(startTime.slice(0,2)), sm = parseInt(startTime.slice(3)||startTime.slice(2,4));
+        const eh = parseInt(endTime.slice(0,2)),   em = parseInt(endTime.slice(3)||endTime.slice(2,4));
+        if ((eh*60+em)<(sh*60+sm)) endDate = addDays(dateStr,1);
+      }
+      const csvLabel = `${startTime.replace(':','')}${endTime ? '-'+endTime.replace(':','') : ''}`;
+      events.push({ date: dateStr, summary: csvLabel, start: startTime, end: endTime||startTime, endDate, allDay: false, type: 'shift', note: '', extraHours: 0 });
+    }
+  }
+  return events;
+}
+
+function splitCSVLine(line) {
+  const result=[]; let cur='', inQ=false;
+  for (const ch of line) {
+    if (ch==='"') inQ=!inQ;
+    else if (ch===','&&!inQ){result.push(cur);cur='';}
+    else cur+=ch;
+  }
+  result.push(cur); return result;
+}
+
+function calcStats(all) {
+  const shifts           = all.filter(e => e.type === 'shift');
+  const extraCompany     = all.filter(e => e.type === 'extra-company');
+  const extraColleague   = all.filter(e => e.type === 'extra-colleague');
+  const fridager         = all.filter(e => e.type === 'fridag');
+
+  const extraDates       = new Set([...extraCompany, ...extraColleague].map(e => e.date));
+  const fridagPure       = fridager.filter(e => !extraDates.has(e.date));
+  const fridagWithWork   = fridager.filter(e => extraDates.has(e.date));
+
+  const totalShiftHours    = shifts.map(shiftHours).reduce((a,b)=>a+b,0);
+  const totalExtraCoHours  = extraCompany.map(shiftHours).reduce((a,b)=>a+b,0);
+  const totalExtraColHours = extraColleague.map(shiftHours).reduce((a,b)=>a+b,0);
+  const totalHours         = totalShiftHours + totalExtraCoHours + totalExtraColHours;
+
+  return { shifts, extraCompany, extraColleague, fridager, fridagPure, fridagWithWork,
+           totalShiftHours, totalExtraCoHours, totalExtraColHours, totalHours };
+}
+
+function typeBadge(type) {
+  const map = {
+    'shift':           ['badge-shift',           'shift'],
+    'extra-company':   ['badge-extra-company',    'Fridag work'],
+    'extra-colleague': ['badge-extra-colleague',  'Byt'],
+    'dayoff':          ['badge-dayoff',           'day off'],
+    'fridag':          ['badge-fridag',           'fridag'],
+  };
+  const [cls, label] = map[type] || ['badge-dayoff', type];
+  return `<span class="badge ${cls}">${label}</span>`;
+}
+
+// OT badge shown next to the type, e.g. "OT1 +4h"
+function otBadge(ev) {
+  if (!ev.otTag) return '';
+  const h = ev.otHours
+    ? ` +${(Math.round(ev.otHours*100)/100).toString().replace('.',',')}h`
+    : '';
+  const w = ev.otWindow ? ` <span class="annot">${ev.otWindow}</span>` : '';
+  return ` <span class="badge badge-${ev.otTag.toLowerCase()}">${ev.otTag}${h}</span>${w}`;
+}
+
+function renderPreview(events, all) {
+  if (!all || !all.length) {
+    previewContent.innerHTML = '<div class="empty-state">No events found. Check file format.</div>';
+    return;
+  }
+  const s = calcStats(all);
+
+  let html = `<div class="preview-wrap"><table><thead><tr>
+    <th>Date</th><th>Summary</th><th>Time</th><th>Type</th>
+  </tr></thead><tbody>`;
+  for (const ev of events) {
+    const timeStr = ev.allDay ? '—'
+      : ev.endDate !== ev.date ? `${ev.start}–${ev.end} <span class="annot">(+1)</span>`
+      : `${ev.start}–${ev.end}`;
+    const annotStr = ev.note ? `<span class="annot">${ev.note}</span>` : '';
+    html += `<tr>
+      <td>${ev.date}</td>
+      <td>${ev.summary} ${annotStr}</td>
+      <td>${timeStr}</td>
+      <td>${typeBadge(ev.type)}${otBadge(ev)}</td>
+    </tr>`;
+  }
+  html += `</tbody></table></div>`;
+
+  html += `<div class="stats-grid">
+    <div class="stat-box accent">
+      <div class="stat-label">Shifts</div>
+      <div class="stat-value">${s.shifts.length}</div>
+      <div class="stat-sub">${fmtHours(s.totalShiftHours)}</div>
+    </div>
+    <div class="stat-box purple">
+      <div class="stat-label">Fridager</div>
+      <div class="stat-value">${s.fridager.length} <span style="font-size:0.8rem;font-weight:400;color:var(--muted)">(${s.fridagPure.length} free)</span></div>
+      <div class="stat-sub">${s.fridagWithWork.length} with extra shift</div>
+    </div>
+    <div class="stat-box success">
+      <div class="stat-label">Company Extra</div>
+      <div class="stat-value">${s.extraCompany.length}</div>
+      <div class="stat-sub">${fmtHours(s.totalExtraCoHours)}</div>
+    </div>
+    <div class="stat-box warn">
+      <div class="stat-label">Colleague Extra</div>
+      <div class="stat-value">${s.extraColleague.length}</div>
+      <div class="stat-sub">${fmtHours(s.totalExtraColHours)}</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">Total Hours</div>
+      <div class="stat-value">${fmtHours(s.totalHours)}</div>
+      <div class="stat-sub">incl. ADM/AFS/LVA/SVA</div>
+    </div>
+  </div>`;
+
+  previewContent.innerHTML = html;
+}
+
+function generateICS(events) {
+  const now = new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');
+  // Times are written as plain local ("floating") date-times: no TZID, no
+  // VTIMEZONE, no UTC conversion. A calendar shows them exactly as written,
+  // which is what you want for a roster you always work in Copenhagen time —
+  // and it keeps DTSTART and DTEND on the same literal date for split shifts.
+  const pad2 = n => String(n).padStart(2,'0');
+  const localStamp = (iso, h, m) => iso.replace(/-/g,'') + 'T' + pad2(h) + pad2(m) + '00';
+
+  let cal = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Schedule//ICS//EN',
+    'CALSCALE:GREGORIAN','METHOD:PUBLISH',`X-WR-CALNAME:${CAL_NAME}`,`X-WR-TIMEZONE:${TZ}`
+  ].join('\r\n') + '\r\n';
+
+  const pad = n => String(n).padStart(2,'0');
+
+  // RFC 5545: no line may exceed 75 octets; longer ones fold onto a
+  // continuation line beginning with a single space. Unfolded lines are a
+  // common reason strict importers (Outlook) silently drop an event.
+  const fold = line => {
+    const bytes = s => new TextEncoder().encode(s).length;
+    if (bytes(line) <= 75) return line;
+    const out = []; let cur = '';
+    for (const ch of line) {                       // iterate by code point
+      const limit = out.length === 0 ? 75 : 74;    // continuation lines carry a leading space
+      if (bytes(cur + ch) > limit) { out.push(cur); cur = ''; }
+      cur += ch;
+    }
+    if (cur) out.push(cur);
+    return out.join('\r\n ');
+  };
+  const push = (arr, line) => arr.push(fold(line));
+
+  // A shift that gets rescheduled must keep its identity, otherwise the
+  // calendar ends up with the old time still sitting there. The UID is
+  // therefore "the Nth duty on this date" — not the times, which change.
+  const seq = {};
+  const bump = 0;  // UIDs are unique per export, so there is nothing to supersede
+
+  // Every export gets its own ID namespace. Outlook skips an incoming event
+  // whose UID it has already seen, which silently drops shifts imported before.
+  const token = Date.now().toString(36);
+
+  events.forEach(ev => {
+    const ukey = ev.date.replace(/-/g,'');
+    seq[ukey] = (seq[ukey] || 0);
+    const uid = ev.allDay
+      ? `${ukey}-allday-${token}@kungkotz.ics`
+      : `${ukey}-${seq[ukey]++}-${token}@kungkotz.ics`;
+
+    const otSuffix = ev.otTag
+      ? ` | ${ev.otTag}${ev.otWindow ? ' ' + ev.otWindow.replace(/–/g,'-') : ''}`
+      : '';
+    // Outlook guesses the codepage when importing .ics, so keep calendar text
+    // to plain ASCII — decorative dashes are the kind of thing that garbles.
+    const toAscii = s => String(s)
+      .replace(/[·•]/g,'-').replace(/[–—−]/g,'-')
+      .replace(/[æÆ]/g,'ae').replace(/[øØ]/g,'oe').replace(/[åÅ]/g,'aa')
+      .replace(/[^\x20-\x7E]/g,'');
+    const esc = s => toAscii(s).replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,');
+    const summary = esc(ev.summary + otSuffix);
+    const descBits = [];
+    if (ev.note) descBits.push(ev.note);
+    if (ev.otTag) {
+      const h = (Math.round((ev.otHours||0)*100)/100).toString().replace('.',',');
+      descBits.push(ev.otTag === 'OT2'
+        ? `OT2: ${h}h on a Fridag`
+        : ev.otPartial
+          ? `OT1: ${h}h (${ev.otWindow}) added beyond the original shift`
+          : `OT1: ${h}h - not in the original roster`);
+    }
+
+    const L = [];
+    L.push('BEGIN:VEVENT');
+    push(L, 'UID:' + uid);
+    L.push('DTSTAMP:' + now);
+    L.push('SEQUENCE:' + bump);          // higher each export, so Outlook applies the update
+    if (ev.allDay || !ev.start || !ev.end) {
+      L.push('DTSTART;VALUE=DATE:' + ev.date.replace(/-/g,''));
+      L.push('DTEND;VALUE=DATE:' + addDays(ev.date, 1).replace(/-/g,''));
+      L.push('TRANSP:TRANSPARENT');
+      L.push('X-MICROSOFT-CDO-BUSYSTATUS:FREE');
+    } else {
+      const [sh, sm] = ev.start.split(':').map(Number);
+      const [eh, em] = ev.end.split(':').map(Number);
+      L.push('DTSTART:' + localStamp(ev.date, sh, sm));
+      L.push('DTEND:'   + localStamp(ev.endDate || ev.date, eh, em));
+      L.push('TRANSP:OPAQUE');
+      L.push('X-MICROSOFT-CDO-BUSYSTATUS:BUSY');
+    }
+    push(L, 'SUMMARY:' + summary);
+    if (descBits.length) push(L, 'DESCRIPTION:' + esc(descBits.join(' - ')));
+    L.push('END:VEVENT');
+    cal += L.join('\r\n') + '\r\n';
+  });
+  return cal + 'END:VCALENDAR\r\n';
+}
+
+exportBtn.addEventListener('click', () => {
+  if (!parsedEvents.length) return;
+  try {
+    const blob = new Blob([generateICS(parsedEvents)], {type:'text/calendar;charset=utf-8'});
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href=url; a.download=`${detectedFilename}.ics`; a.click();
+    URL.revokeObjectURL(url);
+    setStatus('success', `✓ Downloaded ${parsedEvents.length} events as .ics`);
+  } catch(err) { setStatus('error','Export failed: '+err.message); }
+});
+
+function setStatus(type, msg) {
+  statusMsg.className = 'status';
+  if (!type) return;
+  statusMsg.classList.add(type,'show');
+  statusMsg.textContent = msg;
+}
+
+// ── OPS pay check (Lønklasse 4, >36 mdr) ───────────────────────────────
+const RATES = { ot1: 346.85, ot2: 481.73, lva: 166.57, sva: 347.62 };
+const kr = n => n.toLocaleString('da-DK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+function calcPay() {
+  const g = id => parseFloat(document.getElementById(id).value) || 0;
+  const o1 = g('in-ot1'), o2 = g('in-ot2'), lv = g('in-lva'), sv = g('in-sva');
+  const a1 = o1 * RATES.ot1, a2 = o2 * RATES.ot2, al = lv * RATES.lva, as = sv * RATES.sva;
+  const tot = a1 + a2 + al + as;
+  const out = document.getElementById('pay-out');
+  if (!tot) { out.innerHTML = '<div class="pay-empty">Enter your hours and counts to see the kr value.</div>'; return; }
+  const row = (lbl, q, unit, amt) => q
+    ? `<div class="pay-row"><span>${lbl} — ${q} ${unit} × ${kr(RATES[lbl.toLowerCase()])}</span><b>${kr(amt)} kr</b></div>` : '';
+  out.innerHTML =
+    row('OT1', o1, 'hrs', a1) + row('OT2', o2, 'hrs', a2) +
+    row('LVA', lv, '×', al)   + row('SVA', sv, '×', as) +
+    `<div class="pay-row total"><span>Total extra</span><b>${kr(tot)} kr</b></div>`;
+}
+['in-ot1','in-ot2','in-lva','in-sva'].forEach(id =>
+  document.getElementById(id).addEventListener('input', calcPay));
+calcPay();
+</script>
+</body>
+</html>
