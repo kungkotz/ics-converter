@@ -112,6 +112,8 @@
   .badge-extra-colleague { background: rgba(247,179,79,0.15);  color: #c98a00; }
   .badge-dayoff          { background: rgba(138,144,160,0.12); color: var(--muted); }
   .badge-fridag          { background: rgba(124,106,247,0.15); color: #7c6af7; }
+  .badge-ot1             { background: rgba(79,142,247,0.18);  color: var(--accent); border: 1px solid rgba(79,142,247,0.45); font-weight: 700; }
+  .badge-ot2             { background: rgba(247,179,79,0.20);  color: #c98a00; border: 1px solid rgba(247,179,79,0.5);  font-weight: 700; }
 
   .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
   .stat-box {
@@ -265,6 +267,7 @@ let parsedEvents     = [];
 let allEvents        = [];
 let actualRaw        = null;   // current roster text (also drives the calendar)
 let originalRaw      = null;   // original roster text (for OT1)
+let OT_BY_DATE       = {};     // iso date → { ot1, ot2, origKeys }
 let detectedYear     = new Date().getFullYear();
 let detectedMonth    = new Date().getMonth() + 1;
 let detectedFilename = 'schedule';
@@ -315,7 +318,7 @@ function handleFile2(file) {
     originalRaw = e.target.result;
     fileName2.textContent = '📄 ' + file.name;
     clearBtn.style.display = 'block';
-    autofillPay(allEvents);
+    applyFilter();
   };
   reader.readAsText(file, 'latin1');
 }
@@ -329,9 +332,25 @@ dropzone2.addEventListener('drop', e => {
 
 function applyFilter() {
   parsedEvents = allEvents;
+  buildOTMap(allEvents);
+  annotateOT(allEvents);
   renderPreview(parsedEvents, allEvents);
   exportBtn.disabled = parsedEvents.length === 0;
   autofillPay(allEvents);
+}
+
+// Build OT_BY_DATE. With both rosters we derive OT1 + OT2; with only the current
+// roster we can still identify OT2 (Fridag work) on its own.
+function buildOTMap(events) {
+  OT_BY_DATE = {};
+  if (actualRaw && originalRaw) { OT_BY_DATE = deriveOT(actualRaw, originalRaw).byDate; return; }
+  const dur = e => { const [sh,sm]=e.start.split(':').map(Number),[eh,em]=e.end.split(':').map(Number);
+    let m=(eh*60+em)-(sh*60+sm); if(m<0)m+=1440; return m/60; };
+  for (const e of events) {
+    if (e.type !== 'extra-company') continue;
+    if (!OT_BY_DATE[e.date]) OT_BY_DATE[e.date] = { ot1:0, ot2:0, origKeys:new Set() };
+    OT_BY_DATE[e.date].ot2 += dur(e);
+  }
 }
 
 // Per-day worked hours + fridag/byt/recreated flags, for OT derivation.
@@ -375,18 +394,54 @@ function deriveOT(rawA, rawB) {
   const sum = D => Object.values(D).reduce((a,d)=>a+d.h,0);
   const actual = sum(A) >= sum(B) ? A : B;   // more hours = the current roster
   const orig   = actual === A ? B : A;
-  let ot1 = 0, ot2 = 0; const rows = [];
+  let ot1 = 0, ot2 = 0; const rows = []; const byDate = {};
   for (const iso of Object.keys(actual).sort()) {
-    const a = actual[iso], o = orig[iso] || { h:0, fridag:false };
+    const a = actual[iso], o = orig[iso] || { h:0, fridag:false, segs:[] };
     const dd = iso.slice(8);
+    const origKeys = new Set((o.segs||[]).map(s => s[0]+'-'+s[1]));
     if (a.byt) { rows.push([dd,'Byt — excluded','kx','']); continue; }
-    if (a.fridag && a.h > 0) { ot2 += a.h; rows.push([dd,'Fridag work → OT2','k2','+'+a.h]); continue; }
+    if (a.fridag && a.h > 0) {
+      ot2 += a.h; byDate[iso] = { ot1:0, ot2:a.h, origKeys };
+      rows.push([dd,'Fridag work → OT2','k2','+'+a.h]); continue;
+    }
     if (a.recreated) { rows.push([dd,'Recreated — not OT1','kx','']); continue; }
     const base = o.fridag ? 0 : o.h;
     const extra = a.h - base;
-    if (extra > 0.001) { ot1 += extra; rows.push([dd, base ? `Extended (${base}h planned)` : 'Pickup on a day off', 'k1', '+'+extra.toFixed(2)]); }
+    if (extra > 0.001) {
+      ot1 += extra; byDate[iso] = { ot1:extra, ot2:0, origKeys };
+      rows.push([dd, base ? `Extended (${base}h planned)` : 'Pickup on a day off', 'k1', '+'+extra.toFixed(2)]);
+    }
   }
-  return { ot1: Math.round(ot1*100)/100, ot2: Math.round(ot2*100)/100, rows };
+  return { ot1: Math.round(ot1*100)/100, ot2: Math.round(ot2*100)/100, rows, byDate };
+}
+
+// Tag each event with the OT it earned, so it shows in the preview and the calendar.
+// OT2 = any company shift on a Fridag. OT1 = segments not present in the original roster.
+function annotateOT(events) {
+  events.forEach(e => { e.otTag = null; e.otHours = 0; });
+  for (const e of events) {
+    if (e.allDay || e.type === 'extra-colleague') continue;
+    const d = OT_BY_DATE[e.date];
+    if (e.type === 'extra-company') {
+      e.otTag = 'OT2';
+      e.otHours = d ? d.ot2 : 0;
+      continue;
+    }
+    if (!d || d.ot1 <= 0) continue;
+    // only the segments that weren't in the original plan earned OT1
+    const key = (e.start + '-' + e.end).replace(/:/g, '');
+    if (!d.origKeys.has(key)) { e.otTag = 'OT1'; e.otHours = d.ot1; }
+  }
+  // The hours are a per-day total, so print the figure once per day to avoid
+  // it looking like each segment earned that much on its own.
+  const shown = {};
+  for (const e of events) {
+    if (!e.otTag) continue;
+    const k = e.date + e.otTag;
+    e.otShowHours = !shown[k];
+    shown[k] = (shown[k] || 0) + 1;
+  }
+  for (const e of events) if (e.otTag) e.otSegments = shown[e.date + e.otTag];
 }
 
 // OT2 = company hours worked on a scheduled Fridag (parser tags these 'extra-company').
@@ -528,11 +583,11 @@ function parseAltea(raw) {
         if (hasByt) {
           const colleague = colleagueMap[dateStr];
           type    = 'extra-colleague';
-          summary = `${timeLabel} (colleague)`;
+          summary = `${timeLabel} (Byt)`;
           if (colleague && !annotStr) annotToks.push(colleague);
         } else if (hasFridag) {
           type    = 'extra-company';
-          summary = `${timeLabel} (company fridag)`;
+          summary = `${timeLabel} (Fridag)`;
         } else {
           type    = 'shift';
           summary = timeLabel;
@@ -629,13 +684,22 @@ function calcStats(all) {
 function typeBadge(type) {
   const map = {
     'shift':           ['badge-shift',           'shift'],
-    'extra-company':   ['badge-extra-company',    'company extra'],
-    'extra-colleague': ['badge-extra-colleague',  'colleague extra'],
+    'extra-company':   ['badge-extra-company',    'Fridag work'],
+    'extra-colleague': ['badge-extra-colleague',  'Byt'],
     'dayoff':          ['badge-dayoff',           'day off'],
     'fridag':          ['badge-fridag',           'fridag'],
   };
   const [cls, label] = map[type] || ['badge-dayoff', type];
   return `<span class="badge ${cls}">${label}</span>`;
+}
+
+// OT badge shown next to the type, e.g. "OT1 +4h"
+function otBadge(ev) {
+  if (!ev.otTag) return '';
+  const h = (ev.otShowHours && ev.otHours)
+    ? ` +${(Math.round(ev.otHours*100)/100).toString().replace('.',',')}h`
+    : '';
+  return ` <span class="badge badge-${ev.otTag.toLowerCase()}">${ev.otTag}${h}</span>`;
 }
 
 function renderPreview(events, all) {
@@ -657,7 +721,7 @@ function renderPreview(events, all) {
       <td>${ev.date}</td>
       <td>${ev.summary} ${annotStr}</td>
       <td>${timeStr}</td>
-      <td>${typeBadge(ev.type)}</td>
+      <td>${typeBadge(ev.type)}${otBadge(ev)}</td>
     </tr>`;
   }
   html += `</tbody></table></div>`;
@@ -720,8 +784,20 @@ function generateICS(events) {
       : `${dkey}-${(ev.start||'').replace(':','')}-${(ev.end||'').replace(':','')}-${ev.type}@ics.kungkotz`;
     if (seen[uid]) uid = uid.replace('@', `-${seen[uid]}@`); // tiebreak true duplicates
     seen[uid.replace(/-\d+@/,'@')] = (seen[uid.replace(/-\d+@/,'@')]||0) + 1;
-    const summary = ev.summary.replace(/,/g,'\\,').replace(/;/g,'\\;');
-    const desc    = ev.note ? `DESCRIPTION:${ev.note}\r\n` : '';
+    // Surface the overtime tag in the calendar entry itself
+    const otSuffix = ev.otTag ? ` · ${ev.otTag}` : '';
+    const summary = (ev.summary + otSuffix).replace(/,/g,'\\,').replace(/;/g,'\\;');
+    const descBits = [];
+    if (ev.note) descBits.push(ev.note);
+    if (ev.otTag) {
+      const h = (Math.round((ev.otHours||0)*100)/100).toString().replace('.',',');
+      const many = ev.otSegments > 1 ? ` (day total across ${ev.otSegments} segments)` : '';
+      descBits.push(ev.otTag === 'OT2'
+        ? `${ev.otTag}: ${h}h company hours on a Fridag${many}`
+        : `${ev.otTag}: ${h}h above the planned roster this day${many}`);
+    }
+    const desc = descBits.length
+      ? `DESCRIPTION:${descBits.join(' — ').replace(/,/g,'\\,').replace(/;/g,'\\;')}\r\n` : '';
 
     if (ev.allDay || !ev.start || !ev.end) {
       const d    = ev.date.replace(/-/g,'');
