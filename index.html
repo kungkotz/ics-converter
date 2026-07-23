@@ -834,45 +834,81 @@ function generateICS(events) {
 
   const pad = n => String(n).padStart(2,'0');
 
-  const seen = {};
-  events.forEach((ev, idx) => {
-    // UID from the real date + times so no two months ever collide,
-    // and re-importing a corrected month updates instead of duplicating.
+  // RFC 5545: no line may exceed 75 octets; longer ones fold onto a
+  // continuation line beginning with a single space. Unfolded lines are a
+  // common reason strict importers (Outlook) silently drop an event.
+  const fold = line => {
+    const bytes = s => new TextEncoder().encode(s).length;
+    if (bytes(line) <= 75) return line;
+    const out = []; let cur = '';
+    for (const ch of line) {                       // iterate by code point
+      const limit = out.length === 0 ? 75 : 74;    // continuation lines carry a leading space
+      if (bytes(cur + ch) > limit) { out.push(cur); cur = ''; }
+      cur += ch;
+    }
+    if (cur) out.push(cur);
+    return out.join('\r\n ');
+  };
+  const push = (arr, line) => arr.push(fold(line));
+
+  // A shift that gets rescheduled must keep its identity, otherwise the
+  // calendar ends up with the old time still sitting there. The UID is
+  // therefore "the Nth duty on this date" — not the times, which change.
+  const seq = {};
+  const bump = new Date().toISOString().slice(0,16).replace(/\D/g,'').slice(2); // rises each export
+
+  events.forEach(ev => {
     const dkey = ev.date.replace(/-/g,'');
-    let uid = ev.allDay
-      ? `${dkey}-allday-${ev.type}@ics.kungkotz`
-      : `${dkey}-${(ev.start||'').replace(':','')}-${(ev.end||'').replace(':','')}-${ev.type}@ics.kungkotz`;
-    if (seen[uid]) uid = uid.replace('@', `-${seen[uid]}@`); // tiebreak true duplicates
-    seen[uid.replace(/-\d+@/,'@')] = (seen[uid.replace(/-\d+@/,'@')]||0) + 1;
-    // Surface the overtime tag in the calendar entry itself
+    seq[dkey] = (seq[dkey] || 0);
+    const uid = ev.allDay
+      ? `${dkey}-allday@ics.kungkotz`
+      : `${dkey}-${seq[dkey]++}@ics.kungkotz`;
+
     const otSuffix = ev.otTag
-      ? ` · ${ev.otTag}${ev.otWindow ? ' ' + ev.otWindow.replace(/–/g,'-') : ''}`
+      ? ` | ${ev.otTag}${ev.otWindow ? ' ' + ev.otWindow.replace(/–/g,'-') : ''}`
       : '';
-    const summary = (ev.summary + otSuffix).replace(/,/g,'\\,').replace(/;/g,'\\;');
+    // Outlook guesses the codepage when importing .ics, so keep calendar text
+    // to plain ASCII — decorative dashes are the kind of thing that garbles.
+    const toAscii = s => String(s)
+      .replace(/[·•]/g,'-').replace(/[–—−]/g,'-')
+      .replace(/[æÆ]/g,'ae').replace(/[øØ]/g,'oe').replace(/[åÅ]/g,'aa')
+      .replace(/[^\x20-\x7E]/g,'');
+    const esc = s => toAscii(s).replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,');
+    const summary = esc(ev.summary + otSuffix);
     const descBits = [];
     if (ev.note) descBits.push(ev.note);
     if (ev.otTag) {
       const h = (Math.round((ev.otHours||0)*100)/100).toString().replace('.',',');
       descBits.push(ev.otTag === 'OT2'
-        ? `OT2: ${h}h — company hours on a Fridag`
+        ? `OT2: ${h}h on a Fridag`
         : ev.otPartial
-          ? `OT1: ${h}h (${ev.otWindow}) — the part of this shift added beyond the original roster`
-          : `OT1: ${h}h — this shift was not in the original roster`);
+          ? `OT1: ${h}h (${ev.otWindow}) added beyond the original shift`
+          : `OT1: ${h}h - not in the original roster`);
     }
-    const desc = descBits.length
-      ? `DESCRIPTION:${descBits.join(' — ').replace(/,/g,'\\,').replace(/;/g,'\\;')}\r\n` : '';
 
+    const L = [];
+    L.push('BEGIN:VEVENT');
+    push(L, 'UID:' + uid);
+    L.push('DTSTAMP:' + now);
+    L.push('SEQUENCE:' + bump);          // higher each export, so Outlook applies the update
+    L.push('LAST-MODIFIED:' + now);
     if (ev.allDay || !ev.start || !ev.end) {
-      const d    = ev.date.replace(/-/g,'');
-      const next = addDays(ev.date, 1).replace(/-/g,'');
-      cal += `BEGIN:VEVENT\r\nUID:${uid}\r\nDTSTAMP:${now}\r\nDTSTART;VALUE=DATE:${d}\r\nDTEND;VALUE=DATE:${next}\r\nSUMMARY:${summary}\r\n${desc}END:VEVENT\r\n`;
+      L.push('DTSTART;VALUE=DATE:' + ev.date.replace(/-/g,''));
+      L.push('DTEND;VALUE=DATE:' + addDays(ev.date, 1).replace(/-/g,''));
+      L.push('TRANSP:TRANSPARENT');
+      L.push('X-MICROSOFT-CDO-BUSYSTATUS:FREE');
     } else {
       const [sh, sm] = ev.start.split(':').map(Number);
       const [eh, em] = ev.end.split(':').map(Number);
-      const startStr = `${ev.date.replace(/-/g,'')}T${pad(sh)}${pad(sm)}00`;
-      const endStr   = `${(ev.endDate||ev.date).replace(/-/g,'')}T${pad(eh)}${pad(em)}00`;
-      cal += `BEGIN:VEVENT\r\nUID:${uid}\r\nDTSTAMP:${now}\r\nDTSTART;TZID=${TZ}:${startStr}\r\nDTEND;TZID=${TZ}:${endStr}\r\nSUMMARY:${summary}\r\n${desc}END:VEVENT\r\n`;
+      L.push(`DTSTART;TZID=${TZ}:${ev.date.replace(/-/g,'')}T${pad(sh)}${pad(sm)}00`);
+      L.push(`DTEND;TZID=${TZ}:${(ev.endDate||ev.date).replace(/-/g,'')}T${pad(eh)}${pad(em)}00`);
+      L.push('TRANSP:OPAQUE');
+      L.push('X-MICROSOFT-CDO-BUSYSTATUS:BUSY');
     }
+    push(L, 'SUMMARY:' + summary);
+    if (descBits.length) push(L, 'DESCRIPTION:' + esc(descBits.join(' - ')));
+    L.push('END:VEVENT');
+    cal += L.join('\r\n') + '\r\n';
   });
   return cal + 'END:VCALENDAR\r\n';
 }
