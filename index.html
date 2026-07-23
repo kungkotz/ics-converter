@@ -554,14 +554,15 @@ function addDays(dateStr, n) {
 function parseAnnotHours(tokens) {
   let extra = 0;
   for (const t of tokens) {
-    const m = t.match(/^[A-Z]{2,}\(([\d.]+)\)/i);
-    if (m) extra += parseFloat(m[1]);
+    if (/^(LVA|SVA)\(/i.test(t)) continue;      // allowance count, not an hour
+    const m = t.match(/^[A-Z]{2,}\(([\d.,]+)\)/i);
+    if (m) extra += parseFloat(m[1].replace(',', '.'));
   }
   return extra;
 }
 
 function shiftHours(ev) {
-  if (ev.allDay || !ev.start || !ev.end) return 0;
+  if (ev.allDay || !ev.start || !ev.end) return ev.extraHours || 0;
   const [sh, sm] = ev.start.split(':').map(Number);
   const [eh, em] = ev.end.split(':').map(Number);
   let mins = (eh * 60 + em) - (sh * 60 + sm);
@@ -612,63 +613,95 @@ function parseAltea(raw) {
   };
 
   const events = [];
+  const ANNOT = /^[A-Za-z]{2,}\([\d.,]+\)$/;   // ADM(2.00), LVA(1), SVA(1) ...
+
+  // One day's tokens -> events. Shared by both file shapes, so the compact
+  // monthly list gets the same Fridag / Byt / annotation handling as the print.
+  const emitDay = (dateStr, tokens) => {
+    if (!tokens.length) return;
+    const hasByt    = tokens.some(t => /^byt\b/i.test(t) || /^byt[\/\-]/i.test(t));
+    const hasFridag = tokens.some(t => /^fridag$/i.test(t));
+    const shiftToks = tokens.filter(t => /^\d{4}-\d{4}[A-Z]?$/.test(t));
+    const annotToks = tokens.filter(t => ANNOT.test(t));
+    const annotStr  = annotToks.join(' ');
+    const extraHours = parseAnnotHours(annotToks);
+
+    if (hasFridag && shiftToks.length === 0) {
+      const f = makeFridag(dateStr);
+      f.note = annotStr; f.extraHours = extraHours;
+      events.push(f);
+      return;
+    }
+    if (shiftToks.length === 0) {
+      // No duty on the line, but something worth keeping (e.g. ADM on a blank day)
+      if (annotStr) events.push({ date: dateStr, summary: annotStr, start: null, end: null,
+        endDate: dateStr, allDay: true, type: 'dayoff', note: annotStr, extraHours });
+      return;
+    }
+    for (const shiftStr of shiftToks) {
+      const tm = shiftStr.match(/^(\d{2})(\d{2})-(\d{2})(\d{2})[A-Z]?$/);
+      if (!tm) continue;
+      const start = `${tm[1]}:${tm[2]}`, end = `${tm[3]}:${tm[4]}`;
+      let type, summary;
+      const timeLabel = `${tm[1]}${tm[2]}-${tm[3]}${tm[4]}`;
+      if (hasByt) {
+        const colleague = bytCode(tokens) || colleagueMap[dateStr];
+        type    = 'extra-colleague';
+        summary = `${timeLabel} (Byt${colleague ? ' ' + colleague : ''})`; // code shown as-is
+      } else if (hasFridag) {
+        type    = 'extra-company';
+        summary = `${timeLabel} (Fridag)`;
+      } else {
+        type    = 'shift';
+        summary = timeLabel;
+      }
+      events.push(makeShiftEvent(dateStr, start, end, type, summary, annotStr, extraHours));
+    }
+  };
+
+  // Annotations printed on their own row under a day, e.g. "ADM(2.00)" sitting
+  // beneath "19 Sunday 1645-2145G". Attach them to that day instead of dropping.
+  const attachAnnot = (dateStr, tokens) => {
+    const annotToks = tokens.filter(t => ANNOT.test(t));
+    if (!annotToks.length) return;
+    const str = annotToks.join(' ');
+    const hrs = parseAnnotHours(annotToks);
+    const own = events.filter(e => e.date === dateStr);
+    if (!own.length) { emitDay(dateStr, tokens); return; }
+    const t = own[own.length - 1];
+    t.note = t.note ? `${t.note} ${str}` : str;
+    t.extraHours = (t.extraHours || 0) + hrs;
+  };
+
+  const WEEKDAY = /^(mon|tues|wednes|thurs|fri|satur|sun)day$|^(mandag|tirsdag|onsdag|torsdag|fredag|lørdag|søndag)$/i;
+  let lastDate = null;
 
   for (const line of text.split('\n').map(l => l.trim()).filter(Boolean)) {
 
+    // Altéa print: "Thursday 2026/07/02 : 0445-1300 ..."
     const altea = line.match(/^\w+\s+(\d{4})\/(\d{2})\/(\d{2})\s*:\s*(.*)/);
     if (altea) {
       const dateStr = `${altea[1]}-${altea[2]}-${altea[3]}`;
-      const tokens  = altea[4].trim().split(/\s+/).filter(Boolean);
-
-      const hasByt    = tokens.some(t => /^byt\b/i.test(t) || /^byt[\/\-]/i.test(t));
-      const hasFridag = tokens.some(t => /^fridag$/i.test(t));
-      const shiftToks = tokens.filter(t => /^\d{4}-\d{4}[A-Z]?$/.test(t));
-      const annotToks = tokens.filter(t => /^[A-Z]{2,}\(/.test(t));
-      const annotStr  = annotToks.join(' ');
-      const extraHours = parseAnnotHours(annotToks);
-
-      if (tokens.length === 0) continue;
-
-      if (hasFridag && shiftToks.length === 0) events.push(makeFridag(dateStr));
-
-      if (shiftToks.length === 0) continue;
-
-      for (const shiftStr of shiftToks) {
-        const tm = shiftStr.match(/^(\d{2})(\d{2})-(\d{2})(\d{2})[A-Z]?$/);
-        if (!tm) continue;
-        const start = `${tm[1]}:${tm[2]}`, end = `${tm[3]}:${tm[4]}`;
-        let type, summary;
-        const timeLabel = `${tm[1]}${tm[2]}-${tm[3]}${tm[4]}`;
-        if (hasByt) {
-          const colleague = bytCode(tokens) || colleagueMap[dateStr];
-          type    = 'extra-colleague';
-          summary = `${timeLabel} (Byt${colleague ? ' ' + colleague : ''})`; // code shown as-is, not assumed to be the colleague's
-          if (colleague && !annotStr) annotToks.push(colleague);
-        } else if (hasFridag) {
-          type    = 'extra-company';
-          summary = `${timeLabel} (Fridag)`;
-        } else {
-          type    = 'shift';
-          summary = timeLabel;
-        }
-        events.push(makeShiftEvent(dateStr, start, end, type, summary, annotStr, extraHours));
-      }
+      lastDate = dateStr;
+      emitDay(dateStr, altea[4].trim().split(/\s+/).filter(Boolean));
       continue;
     }
 
-    const legacy = line.match(/^(\d{1,2})\s+\w+\s+([\w\-:().]+(?:\s+[\w\-.()]+)?)\s*(.*)/);
-    if (legacy) {
-      const day = parseInt(legacy[1]);
+    // Compact monthly list: " 2 Thursday   0445-1300G"
+    const compact = line.match(/^(\d{1,2})\s+(\S+)\s*(.*)$/);
+    if (compact && WEEKDAY.test(compact[2])) {
+      const day = parseInt(compact[1], 10);
       if (day < 1 || day > 31) continue;
       const dateStr = `${detectedYear}-${String(detectedMonth).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-      const shift   = legacy[2].trim();
-      const note    = legacy[3].trim();
-      if (/^fridag$/i.test(shift)) { events.push(makeFridag(dateStr)); continue; }
-      const tm = shift.match(/^(\d{2})(\d{2})-(\d{2})(\d{2})[A-Z]?$/);
-      if (tm) {
-        events.push(makeShiftEvent(dateStr, `${tm[1]}:${tm[2]}`, `${tm[3]}:${tm[4]}`, 'shift',
-          `${tm[1]}${tm[2]}-${tm[3]}${tm[4]}`, '', 0));
-      }
+      lastDate = dateStr;                       // set even on a blank day
+      emitDay(dateStr, compact[3].trim().split(/\s+/).filter(Boolean));
+      continue;
+    }
+
+    // Continuation row belonging to the day above
+    if (lastDate) {
+      const toks = line.split(/\s+/).filter(Boolean);
+      if (toks.length && toks.every(t => ANNOT.test(t))) attachAnnot(lastDate, toks);
     }
   }
   return events;
