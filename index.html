@@ -819,17 +819,28 @@ function renderPreview(events, all) {
 
 function generateICS(events) {
   const now = new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');
-  const tzBlock = [
-    'BEGIN:VTIMEZONE',`TZID:${TZ}`,
-    'BEGIN:STANDARD','DTSTART:19701025T030000','RRULE:FREQ=YEARLY;BYDAY=-1SU;BYMONTH=10',
-    'TZOFFSETFROM:+0200','TZOFFSETTO:+0100','TZNAME:CET','END:STANDARD',
-    'BEGIN:DAYLIGHT','DTSTART:19700329T020000','RRULE:FREQ=YEARLY;BYDAY=-1SU;BYMONTH=3',
-    'TZOFFSETFROM:+0100','TZOFFSETTO:+0200','TZNAME:CEST','END:DAYLIGHT',
-    'END:VTIMEZONE'
-  ].join('\r\n');
+  // Times are written as absolute UTC (…Z). This needs no VTIMEZONE lookup,
+  // which is what breaks midnight-crossing events in Outlook's importer.
+  const tzOffset = (d) => {
+    const f = new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour12:false,
+      year:'numeric', month:'2-digit', day:'2-digit',
+      hour:'2-digit', minute:'2-digit', second:'2-digit' });
+    const q = {}; for (const p of f.formatToParts(d)) q[p.type] = p.value;
+    const asUTC = Date.UTC(+q.year, +q.month-1, +q.day, +q.hour%24, +q.minute, +q.second);
+    return (asUTC - d.getTime()) / 60000;          // minutes east of UTC
+  };
+  // Wall-clock time in Copenhagen → the matching UTC instant.
+  const wallToUTC = (iso, hh, mm) => {
+    const [y, mo, da] = iso.split('-').map(Number);
+    const naive = Date.UTC(y, mo-1, da, hh, mm);
+    let t = naive;
+    for (let i = 0; i < 2; i++) t = naive - tzOffset(new Date(t)) * 60000;
+    return new Date(t);
+  };
+  const utcStamp = d => d.toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');
 
   let cal = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Schedule//ICS//EN',
-    'CALSCALE:GREGORIAN','METHOD:PUBLISH',`X-WR-CALNAME:${CAL_NAME}`,`X-WR-TIMEZONE:${TZ}`,tzBlock
+    'CALSCALE:GREGORIAN','METHOD:PUBLISH',`X-WR-CALNAME:${CAL_NAME}`,`X-WR-TIMEZONE:${TZ}`
   ].join('\r\n') + '\r\n';
 
   const pad = n => String(n).padStart(2,'0');
@@ -855,7 +866,7 @@ function generateICS(events) {
   // calendar ends up with the old time still sitting there. The UID is
   // therefore "the Nth duty on this date" — not the times, which change.
   const seq = {};
-  const bump = new Date().toISOString().slice(0,16).replace(/\D/g,'').slice(2); // rises each export
+  const bump = Math.floor((Date.now() - Date.UTC(2020,0,1)) / 60000); // rises each export, fits int32
 
   events.forEach(ev => {
     const dkey = ev.date.replace(/-/g,'');
@@ -900,8 +911,8 @@ function generateICS(events) {
     } else {
       const [sh, sm] = ev.start.split(':').map(Number);
       const [eh, em] = ev.end.split(':').map(Number);
-      L.push(`DTSTART;TZID=${TZ}:${ev.date.replace(/-/g,'')}T${pad(sh)}${pad(sm)}00`);
-      L.push(`DTEND;TZID=${TZ}:${(ev.endDate||ev.date).replace(/-/g,'')}T${pad(eh)}${pad(em)}00`);
+      L.push('DTSTART:' + utcStamp(wallToUTC(ev.date, sh, sm)));
+      L.push('DTEND:'   + utcStamp(wallToUTC(ev.endDate || ev.date, eh, em)));
       L.push('TRANSP:OPAQUE');
       L.push('X-MICROSOFT-CDO-BUSYSTATUS:BUSY');
     }
