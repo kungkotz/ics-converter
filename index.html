@@ -185,7 +185,7 @@
 <header>
   <h1>Schedule → ICS</h1>
   <p>Convert your Altéa roster (.txt) or export (.csv) to a calendar file</p>
-  <p style="font-size:0.7rem;color:var(--muted);margin-top:4px">v2026-07-23</p>
+  <p style="font-size:0.7rem;color:var(--muted);margin-top:4px">build 2026-07-23 · 48725cb · <span style="color:var(--success)">DURATION</span></p>
 </header>
 
 <div class="card">
@@ -256,8 +256,8 @@
 <div class="card">
   <h2>5 — Export</h2>
   <label class="chk" style="margin-bottom:12px">
-    <input type="checkbox" id="o-split" checked>
-    <span><b>Split shifts that cross midnight</b><span>Outlook drops events that end on a later date. This writes them as two same-day halves instead, e.g. 21:00–23:59 + 00:00–04:45.</span></span>
+    <input type="checkbox" id="o-split">
+    <span><b>Split shifts that cross midnight</b><span>Last resort only. Writes a night shift as two half events (21:00–23:59 + 00:00–04:45) instead of one. Leave this off unless overnight shifts refuse to import.</span></span>
   </label>
   <button class="btn btn-primary" id="exportBtn" disabled>⬇ Download .ics File</button>
   <div class="status" id="statusMsg"></div>
@@ -922,7 +922,10 @@ function generateICS(events) {
       const [sh, sm] = ev.start.split(':').map(Number);
       const [eh, em] = ev.end.split(':').map(Number);
       L.push('DTSTART:' + localStamp(ev.date, sh, sm));
-      L.push('DTEND:'   + localStamp(ev.endDate || ev.date, eh, em));
+      // DURATION rather than DTEND: an overnight shift then needs no second
+      // date anywhere, while still ending at the right moment.
+      let mins = (eh*60+em) - (sh*60+sm); if (mins <= 0) mins += 1440;
+      L.push('DURATION:PT' + Math.floor(mins/60) + 'H' + (mins%60) + 'M');
       L.push('TRANSP:OPAQUE');
       L.push('X-MICROSOFT-CDO-BUSYSTATUS:BUSY');
     }
