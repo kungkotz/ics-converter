@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>ICS Buddy</title>
+<title>Schedule → ICS Converter</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap');
 
@@ -183,8 +183,9 @@
 <body>
 
 <header>
-  <h1>ICS Bubby</h1>
-  <p style="font-size:0.7rem;color:var(--muted);margin-top:4px">build 2026-07-23 · a5fcc64 · <span style="color:var(--success)">fresh-ids</span></p>
+  <h1>Schedule → ICS</h1>
+  <p>Convert your Altéa roster (.txt) or export (.csv) to a calendar file</p>
+  <p style="font-size:0.7rem;color:var(--muted);margin-top:4px">build <b>2026-07-23b</b> · <span style="color:var(--success)">midnight + annotations</span></p>
 </header>
 
 <div class="card">
@@ -858,7 +859,7 @@ function generateICS(events) {
   const pad2 = n => String(n).padStart(2,'0');
   const localStamp = (iso, h, m) => iso.replace(/-/g,'') + 'T' + pad2(h) + pad2(m) + '00';
 
-  let cal = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Schedule//ICS//EN',
+  let cal = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Schedule//ICS 2026-07-23b//EN',
     'CALSCALE:GREGORIAN','METHOD:PUBLISH',`X-WR-CALNAME:${CAL_NAME}`,`X-WR-TIMEZONE:${TZ}`
   ].join('\r\n') + '\r\n';
 
