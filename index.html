@@ -255,6 +255,10 @@
 
 <div class="card">
   <h2>5 — Export</h2>
+  <label class="chk" style="margin-bottom:12px">
+    <input type="checkbox" id="o-split" checked>
+    <span><b>Split shifts that cross midnight</b><span>Outlook drops events that end on a later date. This writes them as two same-day halves instead, e.g. 21:00–23:59 + 00:00–04:45.</span></span>
+  </label>
   <button class="btn btn-primary" id="exportBtn" disabled>⬇ Download .ics File</button>
   <div class="status" id="statusMsg"></div>
 </div>
@@ -819,25 +823,12 @@ function renderPreview(events, all) {
 
 function generateICS(events) {
   const now = new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');
-  // Times are written as absolute UTC (…Z). This needs no VTIMEZONE lookup,
-  // which is what breaks midnight-crossing events in Outlook's importer.
-  const tzOffset = (d) => {
-    const f = new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour12:false,
-      year:'numeric', month:'2-digit', day:'2-digit',
-      hour:'2-digit', minute:'2-digit', second:'2-digit' });
-    const q = {}; for (const p of f.formatToParts(d)) q[p.type] = p.value;
-    const asUTC = Date.UTC(+q.year, +q.month-1, +q.day, +q.hour%24, +q.minute, +q.second);
-    return (asUTC - d.getTime()) / 60000;          // minutes east of UTC
-  };
-  // Wall-clock time in Copenhagen → the matching UTC instant.
-  const wallToUTC = (iso, hh, mm) => {
-    const [y, mo, da] = iso.split('-').map(Number);
-    const naive = Date.UTC(y, mo-1, da, hh, mm);
-    let t = naive;
-    for (let i = 0; i < 2; i++) t = naive - tzOffset(new Date(t)) * 60000;
-    return new Date(t);
-  };
-  const utcStamp = d => d.toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');
+  // Times are written as plain local ("floating") date-times: no TZID, no
+  // VTIMEZONE, no UTC conversion. A calendar shows them exactly as written,
+  // which is what you want for a roster you always work in Copenhagen time —
+  // and it keeps DTSTART and DTEND on the same literal date for split shifts.
+  const pad2 = n => String(n).padStart(2,'0');
+  const localStamp = (iso, h, m) => iso.replace(/-/g,'') + 'T' + pad2(h) + pad2(m) + '00';
 
   let cal = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Schedule//ICS//EN',
     'CALSCALE:GREGORIAN','METHOD:PUBLISH',`X-WR-CALNAME:${CAL_NAME}`,`X-WR-TIMEZONE:${TZ}`
@@ -868,12 +859,30 @@ function generateICS(events) {
   const seq = {};
   const bump = Math.floor((Date.now() - Date.UTC(2020,0,1)) / 60000); // rises each export, fits int32
 
-  events.forEach(ev => {
+  // Optionally rewrite a midnight-crossing shift as two same-day events, so no
+  // event ever has DTEND on a later date than DTSTART.
+  const splitNight = (document.getElementById('o-split') || {}).checked;
+  const list = [];
+  for (const ev of events) {
+    if (splitNight && !ev.allDay && ev.start && ev.end && ev.endDate && ev.endDate !== ev.date) {
+      list.push(Object.assign({}, ev, { end:'23:59', endDate:ev.date, _uidDate:ev.date, _part:1 }));
+      list.push(Object.assign({}, ev, { date:ev.endDate, start:'00:00', _uidDate:ev.date, _part:2 }));
+    } else list.push(ev);
+  }
+
+  list.forEach(ev => {
     const dkey = ev.date.replace(/-/g,'');
-    seq[dkey] = (seq[dkey] || 0);
-    const uid = ev.allDay
-      ? `${dkey}-allday@ics.kungkotz`
-      : `${dkey}-${seq[dkey]++}@ics.kungkotz`;
+    const ukey = (ev._uidDate || ev.date).replace(/-/g,'');
+    let uid;
+    if (ev.allDay) uid = `${ukey}-allday@ics.kungkotz`;
+    else if (ev._part) {
+      if (ev._part === 1) seq[ukey] = (seq[ukey] || 0);
+      uid = `${ukey}-${seq[ukey] || 0}-p${ev._part}@ics.kungkotz`;
+      if (ev._part === 2) seq[ukey] = (seq[ukey] || 0) + 1;
+    } else {
+      seq[ukey] = (seq[ukey] || 0);
+      uid = `${ukey}-${seq[ukey]++}@ics.kungkotz`;
+    }
 
     const otSuffix = ev.otTag
       ? ` | ${ev.otTag}${ev.otWindow ? ' ' + ev.otWindow.replace(/–/g,'-') : ''}`
@@ -885,7 +894,8 @@ function generateICS(events) {
       .replace(/[æÆ]/g,'ae').replace(/[øØ]/g,'oe').replace(/[åÅ]/g,'aa')
       .replace(/[^\x20-\x7E]/g,'');
     const esc = s => toAscii(s).replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,');
-    const summary = esc(ev.summary + otSuffix);
+    const partTag = ev._part ? (ev._part === 1 ? ' (1/2)' : ' (2/2)') : '';
+    const summary = esc(ev.summary + otSuffix + partTag);
     const descBits = [];
     if (ev.note) descBits.push(ev.note);
     if (ev.otTag) {
@@ -911,8 +921,8 @@ function generateICS(events) {
     } else {
       const [sh, sm] = ev.start.split(':').map(Number);
       const [eh, em] = ev.end.split(':').map(Number);
-      L.push('DTSTART:' + utcStamp(wallToUTC(ev.date, sh, sm)));
-      L.push('DTEND:'   + utcStamp(wallToUTC(ev.endDate || ev.date, eh, em)));
+      L.push('DTSTART:' + localStamp(ev.date, sh, sm));
+      L.push('DTEND:'   + localStamp(ev.endDate || ev.date, eh, em));
       L.push('TRANSP:OPAQUE');
       L.push('X-MICROSOFT-CDO-BUSYSTATUS:BUSY');
     }
