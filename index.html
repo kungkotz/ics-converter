@@ -353,14 +353,46 @@ function buildOTMap(events) {
   }
 }
 
-// Per-day worked hours + fridag/byt/recreated flags, for OT derivation.
+// ── Interval helpers ───────────────────────────────────────────────────
+// Times are minutes from midnight of the roster day; an end <= start rolls +1 day.
+const ivMins = t => +t.slice(0,2)*60 + +t.slice(2);
+function mkIv(s, e) { let a = ivMins(s), b = ivMins(e); if (b <= a) b += 1440; return [a, b]; }
+function mergeIv(list) {
+  const s = list.slice().sort((x,y) => x[0]-y[0]); const out = [];
+  for (const iv of s) {
+    const last = out[out.length-1];
+    if (last && iv[0] <= last[1]) last[1] = Math.max(last[1], iv[1]);
+    else out.push([iv[0], iv[1]]);
+  }
+  return out;
+}
+// Everything in A that is not covered by B.
+function subIv(A, B) {
+  let cur = mergeIv(A);
+  for (const [bs, be] of mergeIv(B)) {
+    const next = [];
+    for (const [s, e] of cur) {
+      if (be <= s || bs >= e) { next.push([s, e]); continue; }
+      if (bs > s) next.push([s, Math.min(bs, e)]);
+      if (be < e) next.push([Math.max(be, s), e]);
+    }
+    cur = next;
+  }
+  return cur.filter(([s,e]) => e - s > 0.001);
+}
+const ivHours = list => list.reduce((a,[s,e]) => a + (e-s)/60, 0);
+const mmss = m => String(Math.floor((m%1440)/60)).padStart(2,'0') + ':' + String(m%60).padStart(2,'0');
+const ivLabel = list => list.map(([s,e]) => mmss(s)+'–'+mmss(e)).join(', ');
+
+// Per-day intervals + fridag/byt/recreated flags, for OT derivation.
+// Byt is "BYT" optionally followed by a 3-letter code (BYT/ALE/…, BYT ALE);
+// segments on a Byt line are colleague hours and never count as OT.
 function rosterDays(raw) {
   const text = (typeof raw === 'string' ? raw : '')
     .replace(/\\'d8/gi,'Ø').replace(/\\'f8/gi,'ø').replace(/\\'e6/gi,'æ')
     .replace(/\\'c6/gi,'Æ').replace(/\\'e5/gi,'å').replace(/\\'c5/gi,'Å')
     .replace(/\\par\b/gi,'\n').replace(/\\[a-zA-Z]+-?\d*\s?/g,'').replace(/[{}]/g,'').replace(/\r/g,'');
   const days = {}; let cur = null;
-  const seg = (s,e) => { let a=+s.slice(0,2)*60+ +s.slice(2), b=+e.slice(0,2)*60+ +e.slice(2); if(b<=a)b+=1440; return (b-a)/60; };
   for (const line of text.split('\n')) {
     if (!line.trim()) continue;
     let iso, rest;
@@ -372,76 +404,95 @@ function rosterDays(raw) {
       else { iso = cur; rest = line; }
     }
     if (!iso) continue;
-    if (!days[iso]) days[iso] = { fridag:false, byt:false, recreated:false, segs:[], h:0 };
-    for (const t of rest.trim().split(/\s+/).filter(Boolean)) {
-      if (/^fridag$/i.test(t)) days[iso].fridag = true;
-      else if (/^byt/i.test(t)) days[iso].byt = true;
-      else if (/^recreated$/i.test(t)) days[iso].recreated = true;
-      else { const s = t.match(/^(\d{4})-(\d{4})[A-Za-z]?$/); if (s) days[iso].segs.push([s[1],s[2]]); }
+    if (!days[iso]) days[iso] = { fridag:false, byt:false, recreated:false, iv:[], bytIv:[], bytWith:null };
+    const d = days[iso];
+    const toks = rest.trim().split(/\s+/).filter(Boolean);
+    // Byt applies to the segments written on the same line as the marker.
+    const bytTok = toks.find(t => /^byt\b/i.test(t) || /^byt[\/\-]/i.test(t));
+    const lineByt = !!bytTok;
+    if (lineByt) {
+      d.byt = true;
+      let code = (bytTok.match(/^byt[\/\-\s]*([A-Za-z]{3})/i) || [])[1];
+      if (!code) { const i = toks.indexOf(bytTok); const nx = toks[i+1] || ''; if (/^[A-Za-z]{3}$/.test(nx)) code = nx; }
+      if (code) d.bytWith = code.toUpperCase();
+    }
+    for (const t of toks) {
+      if (/^fridag$/i.test(t)) d.fridag = true;
+      else if (/^recreated$/i.test(t)) d.recreated = true;
+      else {
+        const s = t.match(/^(\d{4})-(\d{4})[A-Za-z]?$/);
+        if (s) (lineByt ? d.bytIv : d.iv).push(mkIv(s[1], s[2]));
+      }
     }
   }
   for (const d of Object.values(days)) {
-    const seen = new Set();
-    for (const [s,e] of d.segs) { const k=s+e; if(!seen.has(k)){ seen.add(k); d.h += seg(s,e); } }
+    d.iv = mergeIv(d.iv); d.bytIv = mergeIv(d.bytIv);
+    d.h = ivHours(d.iv);
   }
   return days;
 }
 
-// OT1 = hours worked beyond the original plan (pickups + extensions), excluding fridag (OT2),
-// byt, and recreated shifts. OT2 = company hours on a fridag. Rosters may be given in any order.
+// OT1 = the parts of the day worked that were NOT in the original roster
+// (computed as an interval difference, so only the added slice counts).
+// OT2 = company hours on a Fridag. Byt and Recreated never count.
 function deriveOT(rawA, rawB) {
   const A = rosterDays(rawA), B = rosterDays(rawB);
-  const sum = D => Object.values(D).reduce((a,d)=>a+d.h,0);
+  const sum = D => Object.values(D).reduce((a,d) => a + d.h, 0);
   const actual = sum(A) >= sum(B) ? A : B;   // more hours = the current roster
   const orig   = actual === A ? B : A;
   let ot1 = 0, ot2 = 0; const rows = []; const byDate = {};
   for (const iso of Object.keys(actual).sort()) {
-    const a = actual[iso], o = orig[iso] || { h:0, fridag:false, segs:[] };
+    const a = actual[iso], o = orig[iso] || { h:0, fridag:false, iv:[], bytIv:[] };
     const dd = iso.slice(8);
-    const origKeys = new Set((o.segs||[]).map(s => s[0]+'-'+s[1]));
-    if (a.byt) { rows.push([dd,'Byt — excluded','kx','']); continue; }
+    if (a.byt && !a.iv.length) { rows.push([dd, 'Byt' + (a.bytWith ? ' ('+a.bytWith+')' : '') + ' — excluded', 'kx', '']); continue; }
     if (a.fridag && a.h > 0) {
-      ot2 += a.h; byDate[iso] = { ot1:0, ot2:a.h, origKeys };
-      rows.push([dd,'Fridag work → OT2','k2','+'+a.h]); continue;
+      ot2 += a.h;
+      byDate[iso] = { ot1:0, ot2:a.h, ot1Iv:[], ot2Iv:a.iv.slice() };
+      rows.push([dd, 'Fridag work → OT2', 'k2', '+'+a.h]); continue;
     }
-    if (a.recreated) { rows.push([dd,'Recreated — not OT1','kx','']); continue; }
-    const base = o.fridag ? 0 : o.h;
-    const extra = a.h - base;
+    if (a.recreated) { rows.push([dd, 'Recreated — excluded', 'kx', '']); continue; }
+    // planned = the original day's intervals (a fridag was planned as free)
+    const planned = o.fridag ? [] : o.iv;
+    // subtract the plan, then any colleague (Byt) hours
+    const gained = subIv(subIv(a.iv, planned), a.bytIv);
+    const extra = ivHours(gained);
     if (extra > 0.001) {
-      ot1 += extra; byDate[iso] = { ot1:extra, ot2:0, origKeys };
-      rows.push([dd, base ? `Extended (${base}h planned)` : 'Pickup on a day off', 'k1', '+'+extra.toFixed(2)]);
+      ot1 += extra;
+      byDate[iso] = { ot1:extra, ot2:0, ot1Iv:gained, ot2Iv:[] };
+      const why = planned.length ? `Changed from ${ivLabel(planned)}` : 'Pickup on a day off';
+      rows.push([dd, `${why} → OT1 ${ivLabel(gained)}`, 'k1', '+'+extra.toFixed(2)]);
     }
   }
   return { ot1: Math.round(ot1*100)/100, ot2: Math.round(ot2*100)/100, rows, byDate };
 }
 
-// Tag each event with the OT it earned, so it shows in the preview and the calendar.
-// OT2 = any company shift on a Fridag. OT1 = segments not present in the original roster.
+// Tag each event with the OT it earned. An event only carries the OT that falls
+// inside its own hours, so a shift that was merely extended shows just the added slice.
 function annotateOT(events) {
-  events.forEach(e => { e.otTag = null; e.otHours = 0; });
+  events.forEach(e => { e.otTag = null; e.otHours = 0; e.otWindow = ''; e.otPartial = false; });
   for (const e of events) {
-    if (e.allDay || e.type === 'extra-colleague') continue;
+    if (e.allDay || e.type === 'extra-colleague' || !e.start || !e.end) continue;
     const d = OT_BY_DATE[e.date];
+    if (!d) continue;
+    const evIv = [mkIv(e.start.replace(':',''), e.end.replace(':',''))];
     if (e.type === 'extra-company') {
+      const own = subIv(evIv, subIv(evIv, d.ot2Iv && d.ot2Iv.length ? d.ot2Iv : evIv));
       e.otTag = 'OT2';
-      e.otHours = d ? d.ot2 : 0;
+      e.otHours = ivHours(own.length ? own : evIv);
+      e.otWindow = '';
       continue;
     }
-    if (!d || d.ot1 <= 0) continue;
-    // only the segments that weren't in the original plan earned OT1
-    const key = (e.start + '-' + e.end).replace(/:/g, '');
-    if (!d.origKeys.has(key)) { e.otTag = 'OT1'; e.otHours = d.ot1; }
+    if (!d.ot1Iv || !d.ot1Iv.length) continue;
+    // intersect this event with the day's OT1 intervals
+    const overlap = subIv(evIv, subIv(evIv, d.ot1Iv));
+    const h = ivHours(overlap);
+    if (h > 0.001) {
+      e.otTag = 'OT1';
+      e.otHours = h;
+      e.otPartial = h < ivHours(evIv) - 0.001;   // only part of the shift was OT1
+      e.otWindow = e.otPartial ? ivLabel(overlap) : '';
+    }
   }
-  // The hours are a per-day total, so print the figure once per day to avoid
-  // it looking like each segment earned that much on its own.
-  const shown = {};
-  for (const e of events) {
-    if (!e.otTag) continue;
-    const k = e.date + e.otTag;
-    e.otShowHours = !shown[k];
-    shown[k] = (shown[k] || 0) + 1;
-  }
-  for (const e of events) if (e.otTag) e.otSegments = shown[e.date + e.otTag];
 }
 
 // OT2 = company hours worked on a scheduled Fridag (parser tags these 'extra-company').
@@ -551,6 +602,14 @@ function parseAltea(raw) {
       colleagueMap[`${ds.slice(0,4)}-${ds.slice(4,6)}-${ds.slice(6,8)}`] = m[1].toUpperCase();
     }
   }
+  // Colleague code written inline on the day line, e.g. "Byt/ALE/01" or "BYT ALE"
+  const bytCode = toks => {
+    const t = toks.find(x => /^byt\b/i.test(x) || /^byt[\/\-]/i.test(x));
+    if (!t) return null;
+    let c = (t.match(/^byt[\/\-\s]*([A-Za-z]{3})/i) || [])[1];
+    if (!c) { const i = toks.indexOf(t); if (/^[A-Za-z]{3}$/.test(toks[i+1] || '')) c = toks[i+1]; }
+    return c ? c.toUpperCase() : null;
+  };
 
   const events = [];
 
@@ -561,7 +620,7 @@ function parseAltea(raw) {
       const dateStr = `${altea[1]}-${altea[2]}-${altea[3]}`;
       const tokens  = altea[4].trim().split(/\s+/).filter(Boolean);
 
-      const hasByt    = tokens.some(t => /^byt$/i.test(t));
+      const hasByt    = tokens.some(t => /^byt\b/i.test(t) || /^byt[\/\-]/i.test(t));
       const hasFridag = tokens.some(t => /^fridag$/i.test(t));
       const shiftToks = tokens.filter(t => /^\d{4}-\d{4}[A-Z]?$/.test(t));
       const annotToks = tokens.filter(t => /^[A-Z]{2,}\(/.test(t));
@@ -581,9 +640,9 @@ function parseAltea(raw) {
         let type, summary;
         const timeLabel = `${tm[1]}${tm[2]}-${tm[3]}${tm[4]}`;
         if (hasByt) {
-          const colleague = colleagueMap[dateStr];
+          const colleague = bytCode(tokens) || colleagueMap[dateStr];
           type    = 'extra-colleague';
-          summary = `${timeLabel} (Byt)`;
+          summary = `${timeLabel} (Byt${colleague ? ' ' + colleague : ''})`; // code shown as-is, not assumed to be the colleague's
           if (colleague && !annotStr) annotToks.push(colleague);
         } else if (hasFridag) {
           type    = 'extra-company';
@@ -696,10 +755,11 @@ function typeBadge(type) {
 // OT badge shown next to the type, e.g. "OT1 +4h"
 function otBadge(ev) {
   if (!ev.otTag) return '';
-  const h = (ev.otShowHours && ev.otHours)
+  const h = ev.otHours
     ? ` +${(Math.round(ev.otHours*100)/100).toString().replace('.',',')}h`
     : '';
-  return ` <span class="badge badge-${ev.otTag.toLowerCase()}">${ev.otTag}${h}</span>`;
+  const w = ev.otWindow ? ` <span class="annot">${ev.otWindow}</span>` : '';
+  return ` <span class="badge badge-${ev.otTag.toLowerCase()}">${ev.otTag}${h}</span>${w}`;
 }
 
 function renderPreview(events, all) {
@@ -785,16 +845,19 @@ function generateICS(events) {
     if (seen[uid]) uid = uid.replace('@', `-${seen[uid]}@`); // tiebreak true duplicates
     seen[uid.replace(/-\d+@/,'@')] = (seen[uid.replace(/-\d+@/,'@')]||0) + 1;
     // Surface the overtime tag in the calendar entry itself
-    const otSuffix = ev.otTag ? ` · ${ev.otTag}` : '';
+    const otSuffix = ev.otTag
+      ? ` · ${ev.otTag}${ev.otWindow ? ' ' + ev.otWindow.replace(/–/g,'-') : ''}`
+      : '';
     const summary = (ev.summary + otSuffix).replace(/,/g,'\\,').replace(/;/g,'\\;');
     const descBits = [];
     if (ev.note) descBits.push(ev.note);
     if (ev.otTag) {
       const h = (Math.round((ev.otHours||0)*100)/100).toString().replace('.',',');
-      const many = ev.otSegments > 1 ? ` (day total across ${ev.otSegments} segments)` : '';
       descBits.push(ev.otTag === 'OT2'
-        ? `${ev.otTag}: ${h}h company hours on a Fridag${many}`
-        : `${ev.otTag}: ${h}h above the planned roster this day${many}`);
+        ? `OT2: ${h}h — company hours on a Fridag`
+        : ev.otPartial
+          ? `OT1: ${h}h (${ev.otWindow}) — the part of this shift added beyond the original roster`
+          : `OT1: ${h}h — this shift was not in the original roster`);
     }
     const desc = descBits.length
       ? `DESCRIPTION:${descBits.join(' — ').replace(/,/g,'\\,').replace(/;/g,'\\;')}\r\n` : '';
