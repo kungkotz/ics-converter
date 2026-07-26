@@ -185,7 +185,7 @@
 <header>
   <h1>Schedule → ICS</h1>
   <p>Convert your Altéa roster (.txt) or export (.csv) to a calendar file</p>
-  <p style="font-size:0.7rem;color:var(--muted);margin-top:4px">build <b>2026-07-23b</b> · <span style="color:var(--success)">midnight + annotations</span></p>
+  <p style="font-size:0.7rem;color:var(--muted);margin-top:4px">build <b>2026-07-26</b> · <span style="color:var(--success)">tz-safe overnights</span></p>
 </header>
 
 <div class="card">
@@ -546,9 +546,15 @@ function detectYearMonth(text) {
 }
 
 function addDays(dateStr, n) {
-  const d = new Date(dateStr + 'T00:00:00');
-  d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
+  // Do the arithmetic entirely in UTC. Parsing "YYYY-MM-DDT00:00:00" without a
+  // zone made this local-time dependent: on a UTC+2 device midnight rolls back
+  // across the date line and "add a day" returned the same day, collapsing every
+  // overnight shift's end onto its start date. Date.UTC + toISOString is stable
+  // in every timezone.
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + n);
+  return dt.toISOString().slice(0, 10);
 }
 
 function parseAnnotHours(tokens) {
@@ -859,7 +865,7 @@ function generateICS(events) {
   const pad2 = n => String(n).padStart(2,'0');
   const localStamp = (iso, h, m) => iso.replace(/-/g,'') + 'T' + pad2(h) + pad2(m) + '00';
 
-  let cal = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Schedule//ICS 2026-07-23b//EN',
+  let cal = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Schedule//ICS 2026-07-26//EN',
     'CALSCALE:GREGORIAN','METHOD:PUBLISH',`X-WR-CALNAME:${CAL_NAME}`,`X-WR-TIMEZONE:${TZ}`
   ].join('\r\n') + '\r\n';
 
