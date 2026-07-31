@@ -185,7 +185,7 @@
 <header>
   <h1>Schedule → ICS</h1>
   <p>Convert your Altéa roster (.txt) or export (.csv) to a calendar file</p>
-  <p style="font-size:0.7rem;color:var(--muted);margin-top:4px">build <b>2026-07-26</b> · <span style="color:var(--success)">tz-safe overnights</span></p>
+  <p style="font-size:0.7rem;color:var(--muted);margin-top:4px">build <b>2026-07-31</b> · <span style="color:var(--success)">midnight (2400) fix</span></p>
 </header>
 
 <div class="card">
@@ -584,8 +584,18 @@ function fmtHours(h) {
 
 function makeShiftEvent(dateStr, start, end, type, summary, annots, extraHours) {
   const [sh, sm] = start.split(':').map(Number);
-  const [eh, em] = end.split(':').map(Number);
-  const endDate  = (eh * 60 + em) < (sh * 60 + sm) ? addDays(dateStr, 1) : dateStr;
+  let [eh, em] = end.split(':').map(Number);
+  let endDate = dateStr;
+  // A shift printed as "1800-2400" ends at 24:00, i.e. midnight = 00:00 the next
+  // day. iCalendar has no hour 24; an event written with T240000 is invalid and
+  // Outlook silently drops it. Normalise to 00:00 on the following day.
+  if (eh >= 24) {
+    eh -= 24;
+    endDate = addDays(dateStr, 1);
+    end = String(eh).padStart(2,'0') + ':' + String(em).padStart(2,'0');
+  } else if (eh * 60 + em < sh * 60 + sm) {
+    endDate = addDays(dateStr, 1);            // ordinary overnight (end before start)
+  }
   return { date: dateStr, summary, start, end, endDate, allDay: false, type, note: annots, extraHours: extraHours || 0 };
 }
 function makeFridag(dateStr) {
@@ -738,13 +748,17 @@ function parseCSV(raw) {
       events.push({ date: dateStr, summary: subject, start: null, end: null, endDate: dateStr, allDay: true, type: 'dayoff', note: '', extraHours: 0 });
     } else {
       let endDate = dateStr;
+      let endNorm = endTime || startTime;
       if (endTime) {
         const sh = parseInt(startTime.slice(0,2)), sm = parseInt(startTime.slice(3)||startTime.slice(2,4));
-        const eh = parseInt(endTime.slice(0,2)),   em = parseInt(endTime.slice(3)||endTime.slice(2,4));
-        if ((eh*60+em)<(sh*60+sm)) endDate = addDays(dateStr,1);
+        let eh = parseInt(endTime.slice(0,2)),     em = parseInt(endTime.slice(3)||endTime.slice(2,4));
+        if (eh >= 24) {                                 // 24:00 → 00:00 next day
+          eh -= 24; endDate = addDays(dateStr,1);
+          endNorm = String(eh).padStart(2,'0') + ':' + String(em).padStart(2,'0');
+        } else if ((eh*60+em)<(sh*60+sm)) endDate = addDays(dateStr,1);
       }
       const csvLabel = `${startTime.replace(':','')}${endTime ? '-'+endTime.replace(':','') : ''}`;
-      events.push({ date: dateStr, summary: csvLabel, start: startTime, end: endTime||startTime, endDate, allDay: false, type: 'shift', note: '', extraHours: 0 });
+      events.push({ date: dateStr, summary: csvLabel, start: startTime, end: endNorm, endDate, allDay: false, type: 'shift', note: '', extraHours: 0 });
     }
   }
   return events;
@@ -865,7 +879,7 @@ function generateICS(events) {
   const pad2 = n => String(n).padStart(2,'0');
   const localStamp = (iso, h, m) => iso.replace(/-/g,'') + 'T' + pad2(h) + pad2(m) + '00';
 
-  let cal = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Schedule//ICS 2026-07-26//EN',
+  let cal = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Schedule//ICS 2026-07-31//EN',
     'CALSCALE:GREGORIAN','METHOD:PUBLISH',`X-WR-CALNAME:${CAL_NAME}`,`X-WR-TIMEZONE:${TZ}`
   ].join('\r\n') + '\r\n';
 
@@ -939,9 +953,11 @@ function generateICS(events) {
       L.push('X-MICROSOFT-CDO-BUSYSTATUS:FREE');
     } else {
       const [sh, sm] = ev.start.split(':').map(Number);
-      const [eh, em] = ev.end.split(':').map(Number);
+      let [eh, em]   = ev.end.split(':').map(Number);
+      let endIso     = ev.endDate || ev.date;
+      if (eh >= 24) { eh -= 24; endIso = addDays(endIso, 1); }   // never emit T24:00, valid or not
       L.push('DTSTART:' + localStamp(ev.date, sh, sm));
-      L.push('DTEND:'   + localStamp(ev.endDate || ev.date, eh, em));
+      L.push('DTEND:'   + localStamp(endIso, eh, em));
       L.push('TRANSP:OPAQUE');
       L.push('X-MICROSOFT-CDO-BUSYSTATUS:BUSY');
     }
