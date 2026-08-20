@@ -185,7 +185,7 @@
 <header>
   <h1>Schedule → ICS</h1>
   <p>Convert your Altéa roster (.txt) or export (.csv) to a calendar file</p>
-  <p style="font-size:0.7rem;color:var(--muted);margin-top:4px">build <b>2026-08-20</b> · <span style="color:var(--success)">1h reminder</span></p>
+  <p style="font-size:0.7rem;color:var(--muted);margin-top:4px">build <b>2026-08-20b</b> · <span style="color:var(--success)">AFS/annotation hours</span></p>
 </header>
 
 <div class="card">
@@ -784,7 +784,11 @@ function calcStats(all) {
   const fridagPure       = fridager.filter(e => !extraDates.has(e.date));
   const fridagWithWork   = fridager.filter(e => extraDates.has(e.date));
 
-  const totalShiftHours    = shifts.map(shiftHours).reduce((a,b)=>a+b,0);
+  // 'dayoff' events with extraHours carry annotation-only duty (e.g. AFS(6.00) on
+  // a blank day) — no timed shift, but hours still count toward the total.
+  const annotOnlyHours     = all.filter(e => e.type === 'dayoff' && e.extraHours > 0)
+                                .reduce((a,e) => a + e.extraHours, 0);
+  const totalShiftHours    = shifts.map(shiftHours).reduce((a,b)=>a+b,0) + annotOnlyHours;
   const totalExtraCoHours  = extraCompany.map(shiftHours).reduce((a,b)=>a+b,0);
   const totalExtraColHours = extraColleague.map(shiftHours).reduce((a,b)=>a+b,0);
   const totalHours         = totalShiftHours + totalExtraCoHours + totalExtraColHours;
@@ -879,7 +883,7 @@ function generateICS(events) {
   const pad2 = n => String(n).padStart(2,'0');
   const localStamp = (iso, h, m) => iso.replace(/-/g,'') + 'T' + pad2(h) + pad2(m) + '00';
 
-  let cal = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Schedule//ICS 2026-08-20//EN',
+  let cal = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Schedule//ICS 2026-08-20b//EN',
     'CALSCALE:GREGORIAN','METHOD:PUBLISH',`X-WR-CALNAME:${CAL_NAME}`,`X-WR-TIMEZONE:${TZ}`
   ].join('\r\n') + '\r\n';
 
