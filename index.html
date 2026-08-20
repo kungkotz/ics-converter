@@ -185,7 +185,7 @@
 <header>
   <h1>Schedule → ICS</h1>
   <p>Convert your Altéa roster (.txt) or export (.csv) to a calendar file</p>
-  <p style="font-size:0.7rem;color:var(--muted);margin-top:4px">build <b>2026-07-31</b> · <span style="color:var(--success)">midnight (2400) fix</span></p>
+  <p style="font-size:0.7rem;color:var(--muted);margin-top:4px">build <b>2026-08-20</b> · <span style="color:var(--success)">1h reminder</span></p>
 </header>
 
 <div class="card">
@@ -879,7 +879,7 @@ function generateICS(events) {
   const pad2 = n => String(n).padStart(2,'0');
   const localStamp = (iso, h, m) => iso.replace(/-/g,'') + 'T' + pad2(h) + pad2(m) + '00';
 
-  let cal = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Schedule//ICS 2026-07-31//EN',
+  let cal = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Schedule//ICS 2026-08-20//EN',
     'CALSCALE:GREGORIAN','METHOD:PUBLISH',`X-WR-CALNAME:${CAL_NAME}`,`X-WR-TIMEZONE:${TZ}`
   ].join('\r\n') + '\r\n';
 
@@ -963,6 +963,11 @@ function generateICS(events) {
     }
     push(L, 'SUMMARY:' + summary);
     if (descBits.length) push(L, 'DESCRIPTION:' + esc(descBits.join(' - ')));
+    L.push('BEGIN:VALARM');
+    L.push('TRIGGER:-PT1H');
+    L.push('ACTION:DISPLAY');
+    L.push('DESCRIPTION:Reminder');
+    L.push('END:VALARM');
     L.push('END:VEVENT');
     cal += L.join('\r\n') + '\r\n';
   });
